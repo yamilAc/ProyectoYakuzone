@@ -1,0 +1,15 @@
+# Solo se versionan el backend (node/) y el frontend (yakuzone/)
+/*
+!/.gitignore
+!/node/
+!/yakuzone/
+
+# Repositorio inicial de Create React App (sin contenido del proyecto)
+/yakuzone/.git_cra_inicial/
+
+# Dependencias, compilados, secretos y temporales
+node_modules/
+build/
+.env
+*.log
+~$*
