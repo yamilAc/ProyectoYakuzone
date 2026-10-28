@@ -1,0 +1,51 @@
+/* src/App.css */
+.App {
+  min-height: 100vh;
+  background-color: #EAF3F6;
+}
+
+/* Marcadores de estado en el mapa (Zonas / Dashboard) — ver src/utils/estadoSensor.js */
+.yz-divicon {
+  background: transparent !important;
+  border: none !important;
+}
+
+.yz-sensor-marker {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 3px solid #ffffff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+}
+
+.yz-marker-verde {
+  background-color: #2E7D32;
+}
+
+.yz-marker-amarillo {
+  background-color: #ED6C02;
+}
+
+.yz-marker-rojo {
+  background-color: #D32F2F;
+  animation: yz-pulso-alerta 1.4s ease-in-out infinite;
+}
+
+.yz-marker-sindatos {
+  background-color: #9e9e9e;
+}
+.yz-marker-info {
+  background-color: #0E7C9B;
+}
+
+@keyframes yz-pulso-alerta {
+  0% {
+    box-shadow: 0 0 0 0 rgba(211, 47, 47, 0.55);
+  }
+  70% {
+    box-shadow: 0 0 0 12px rgba(211, 47, 47, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(211, 47, 47, 0);
+  }
+}
