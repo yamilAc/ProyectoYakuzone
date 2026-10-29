@@ -34,6 +34,12 @@
 .yz-marker-sindatos {
   background-color: #9e9e9e;
 }
+/* Sensor sin lecturas recientes: gris y semitransparente */
+.yz-marker-desconectado {
+  background-color: #9e9e9e;
+  opacity: 0.75;
+  border-style: dashed;
+}
 .yz-marker-info {
   background-color: #0E7C9B;
 }

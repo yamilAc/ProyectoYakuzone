@@ -6,16 +6,20 @@ import RoomIcon from '@mui/icons-material/Room';
 import { motion } from 'framer-motion';
 import axios from '../axios/axiosConfig';
 import PageHeader from '../components/PageHeader';
-import { evaluarEstadoSensor, evaluarParametros, crearIconoEstado, COLORES_ESTADO, ETIQUETAS_ESTADO } from '../utils/estadoSensor';
+import {
+  evaluarEstadoSensor,
+  evaluarParametros,
+  crearIconoEstado,
+  textoUltimaLectura,
+  COLORES_ESTADO,
+  ETIQUETAS_ESTADO,
+  LEYENDA_ESTADOS,
+} from '../utils/estadoSensor';
 
 // Centro por defecto: OTB Urbanización Halein, Chiquicollo, Cochabamba.
 const CENTRO_DEFAULT = { lat: -17.4033631, lng: -66.193527 };
 
-const LEYENDA = [
-  { estado: 'verde', texto: 'Normal' },
-  { estado: 'amarillo', texto: 'Advertencia' },
-  { estado: 'rojo', texto: 'Alerta' },
-];
+const LEYENDA = LEYENDA_ESTADOS.map((estado) => ({ estado, texto: ETIQUETAS_ESTADO[estado] }));
 
 const Zonas = () => {
   const [sensores, setSensores] = useState([]);
@@ -148,6 +152,7 @@ const Zonas = () => {
                             <div style={{ marginTop: 6, fontWeight: 700, color: estado ? COLORES_ESTADO[estado] : '#9e9e9e' }}>
                               {estado ? ETIQUETAS_ESTADO[estado] : 'Sin lecturas todavía'}
                             </div>
+                            {ultima && <div style={{ fontSize: 12, color: '#78909C' }}>{textoUltimaLectura(ultima)}</div>}
                             {parametros.length > 0 && (
                               <div style={{ marginTop: 6, borderTop: '1px solid #eee', paddingTop: 6 }}>
                                 {parametros.map((p) => (

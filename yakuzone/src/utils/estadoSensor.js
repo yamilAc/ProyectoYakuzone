@@ -1,9 +1,13 @@
 import L from 'leaflet';
 
+// Estado de cada sensor en tiempo real, calculado con su última lectura (el
+// Dashboard, Zonas y Sensores la vuelven a pedir cada 10 segundos).
 // Mismos umbrales que utils/thresholds.js del backend (NB 512-04). Además
 // de los límites duros (rojo = fuera de rango), se define un margen de
 // advertencia cerca de cada límite (amarillo), para poder anticipar un
-// problema antes de que se convierta en alerta.
+// problema antes de que se convierta en alerta. Si el sensor deja de enviar
+// lecturas, su último estado ya no representa el agua: se muestra "Sin
+// conexión" en vez de dejarlo congelado.
 export const UMBRALES = {
   valor_ph: { min: 6.5, max: 9.0 },
   valor_turbidez: { min: 0, max: 5 },
@@ -12,10 +16,23 @@ export const UMBRALES = {
 
 const MARGEN_ADVERTENCIA = 0.1; // 10% del ancho del rango, hacia cada lado
 
+// Minutos sin lecturas a partir de los cuales el sensor se considera sin
+// conexión (el prototipo envía una lectura cada pocos segundos).
+export const MINUTOS_SIN_CONEXION = 5;
+
+export const esLecturaReciente = (lectura) =>
+  Boolean(lectura) && Date.now() - new Date(lectura.fecha_hora).getTime() <= MINUTOS_SIN_CONEXION * 60 * 1000;
+
+// Cerca de un límite real: el mínimo solo cuenta si es mayor que 0 (pH); en
+// turbidez y conductividad el mínimo es 0, que es agua limpia, no un riesgo.
+const cercaDelMinimo = (valor, { min, max }) => min > 0 && valor < min + (max - min) * MARGEN_ADVERTENCIA;
+const cercaDelMaximo = (valor, { min, max }) => valor > max - (max - min) * MARGEN_ADVERTENCIA;
+
 export const COLORES_ESTADO = {
   verde: '#2E7D32',
   amarillo: '#ED6C02',
   rojo: '#D32F2F',
+  desconectado: '#9e9e9e',
   info: '#0E7C9B',
 };
 
@@ -23,30 +40,44 @@ export const ETIQUETAS_ESTADO = {
   verde: 'Normal',
   amarillo: 'Advertencia',
   rojo: 'Alerta',
+  desconectado: 'Sin conexión',
 };
 
-// Devuelve 'rojo' | 'amarillo' | 'verde' | null (sin datos aún) para una
-// lectura. La temperatura no tiene umbral normado, así que no participa del
-// cálculo (igual que en el backend).
+// Estados que se muestran en las leyendas de los mapas.
+export const LEYENDA_ESTADOS = ['verde', 'amarillo', 'rojo', 'desconectado'];
+
+// Devuelve 'rojo' | 'amarillo' | 'verde' | 'desconectado' (la última lectura
+// tiene más de MINUTOS_SIN_CONEXION) | null (sin lecturas aún). La
+// temperatura no tiene umbral normado, así que no participa del cálculo
+// (igual que en el backend).
 export const evaluarEstadoSensor = (lectura) => {
   if (!lectura) return null;
+  if (!esLecturaReciente(lectura)) return 'desconectado';
 
   let estado = 'verde';
   for (const campo of Object.keys(UMBRALES)) {
     const valor = Number(lectura[campo]);
     if (Number.isNaN(valor)) continue;
 
-    const { min, max } = UMBRALES[campo];
-    if (valor < min || valor > max) {
+    const umbral = UMBRALES[campo];
+    if (valor < umbral.min || valor > umbral.max) {
       return 'rojo'; // el peor caso posible, no hace falta seguir revisando
     }
-
-    const margen = (max - min) * MARGEN_ADVERTENCIA;
-    if (valor < min + margen || valor > max - margen) {
+    if (cercaDelMinimo(valor, umbral) || cercaDelMaximo(valor, umbral)) {
       estado = 'amarillo';
     }
   }
   return estado;
+};
+
+// "hace 2 min" si la lectura es reciente; si no, la fecha y hora.
+export const textoUltimaLectura = (lectura) => {
+  if (!lectura) return 'Sin lecturas todavía';
+  const fecha = new Date(lectura.fecha_hora);
+  const minutos = Math.floor((Date.now() - fecha.getTime()) / 60000);
+  if (minutos < 1) return 'Última lectura: hace menos de 1 min';
+  if (minutos < 60) return `Última lectura: hace ${minutos} min`;
+  return `Última lectura: ${fecha.toLocaleString()}`;
 };
 
 const ETIQUETAS_CAMPO = {
@@ -99,21 +130,20 @@ export const evaluarParametros = (lectura) => {
       return { campo, nombre, unidad, valor: valorNum, estado: 'info', texto: 'Registrada (sin umbral normado)' };
     }
 
-    const { min, max } = UMBRALES[campo];
-    const margen = (max - min) * MARGEN_ADVERTENCIA;
+    const umbral = UMBRALES[campo];
 
     let estado = 'verde';
     let clave = 'verde';
-    if (valorNum < min) {
+    if (valorNum < umbral.min) {
       estado = 'rojo';
       clave = 'rojo_bajo';
-    } else if (valorNum > max) {
+    } else if (valorNum > umbral.max) {
       estado = 'rojo';
       clave = 'rojo_alto';
-    } else if (valorNum < min + margen) {
+    } else if (cercaDelMinimo(valorNum, umbral)) {
       estado = 'amarillo';
       clave = 'amarillo_bajo';
-    } else if (valorNum > max - margen) {
+    } else if (cercaDelMaximo(valorNum, umbral)) {
       estado = 'amarillo';
       clave = 'amarillo_alto';
     }

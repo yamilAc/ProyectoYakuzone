@@ -40,7 +40,7 @@ import ShowChartIcon from '@mui/icons-material/ShowChart';
 import PersonIcon from '@mui/icons-material/Person';
 import axios from '../axios/axiosConfig';
 import PageHeader from '../components/PageHeader';
-import { evaluarEstadoSensor, COLORES_ESTADO, ETIQUETAS_ESTADO, crearIconoEstado } from '../utils/estadoSensor';
+import { evaluarEstadoSensor, textoUltimaLectura, COLORES_ESTADO, ETIQUETAS_ESTADO, crearIconoEstado } from '../utils/estadoSensor';
 import { getUserRole } from '../axios/auth';
 
 // Centro por defecto para el mini-mapa del formulario: OTB Urbanización
@@ -82,6 +82,9 @@ const SelectorDeUbicacion = ({ onSeleccionar }) => {
   return null;
 };
 
+// { sensor_id: lectura } a partir de la lista de últimas lecturas.
+const porSensor = (lecturas) => Object.fromEntries(lecturas.map((lectura) => [lectura.sensor_id, lectura]));
+
 // El administrador da de alta, edita y elimina sensores; el empleado (que
 // llega desde el Dashboard) solo los consulta. Al tocar una tarjeta se abren
 // las Lecturas de ese sensor.
@@ -112,11 +115,7 @@ const Sensores = () => {
         axios.get('/lecturas/ultimas').catch(() => ({ data: [] })),
       ]);
       setSensores(resSensores.data);
-      const mapa = {};
-      resUltimas.data.forEach((lectura) => {
-        mapa[lectura.sensor_id] = lectura;
-      });
-      setUltimasPorSensor(mapa);
+      setUltimasPorSensor(porSensor(resUltimas.data));
     } catch (err) {
       console.error('Error al cargar sensores:', err);
       setFeedback({ open: true, severity: 'error', message: 'No se pudo cargar la lista de sensores.' });
@@ -127,6 +126,18 @@ const Sensores = () => {
 
   useEffect(() => {
     cargarDatos();
+  }, []);
+
+  // Estado en tiempo real: la última lectura de cada sensor se vuelve a pedir
+  // cada 10 segundos, igual que en el Dashboard y en Zonas.
+  useEffect(() => {
+    const interval = setInterval(() => {
+      axios
+        .get('/lecturas/ultimas')
+        .then((res) => setUltimasPorSensor(porSensor(res.data)))
+        .catch(() => {});
+    }, 10000);
+    return () => clearInterval(interval);
   }, []);
 
   const sensoresFiltrados = useMemo(() => {
@@ -356,6 +367,9 @@ const Sensores = () => {
                             {Number(sensor.latitud).toFixed(5)}, {Number(sensor.longitud).toFixed(5)}
                           </Typography>
                         )}
+                        <Typography variant="caption" color={estado === 'desconectado' ? 'text.secondary' : 'text.disabled'}>
+                          {textoUltimaLectura(ultima)}
+                        </Typography>
 
                         <Box sx={{ flex: 1 }} />
                         <Divider sx={{ my: 1 }} />

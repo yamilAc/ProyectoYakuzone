@@ -46,9 +46,13 @@ router.get('/ultimas', authenticate, async (req, res) => {
          SELECT sensor_id, MAX(fecha_hora) AS max_fecha
          FROM lecturas
          GROUP BY sensor_id
-       ) ultimas ON ultimas.sensor_id = l.sensor_id AND ultimas.max_fecha = l.fecha_hora`
+       ) ultimas ON ultimas.sensor_id = l.sensor_id AND ultimas.max_fecha = l.fecha_hora
+       ORDER BY l.id DESC`
     );
-    res.json(rows);
+    // Si un sensor tiene varias lecturas con la misma fecha y hora, se
+    // devuelve solo la última registrada (una fila por sensor).
+    const vistos = new Set();
+    res.json(rows.filter((r) => !vistos.has(r.sensor_id) && vistos.add(r.sensor_id)));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
