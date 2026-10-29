@@ -36,7 +36,7 @@ async function main() {
     process.exit(1);
   }
 
-  console.log(`Enviando 10 lecturas de pH fuera de rango (valor 3.0, rango aceptable 6.5-8.5) para ${N_SERIE}...`);
+  console.log(`Enviando 10 lecturas de pH fuera de rango (valor 3.0, rango aceptable 6.5-9.0) para ${N_SERIE}...`);
   for (let i = 0; i < 10; i++) {
     const { data } = await axios.post(
       `${BASE_URL}/lecturas`,

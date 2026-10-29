@@ -5,8 +5,8 @@ import L from 'leaflet';
 // advertencia cerca de cada límite (amarillo), para poder anticipar un
 // problema antes de que se convierta en alerta.
 export const UMBRALES = {
-  valor_ph: { min: 6.5, max: 8.5 },
-  valor_turbidez: { min: 0, max: 1 },
+  valor_ph: { min: 6.5, max: 9.0 },
+  valor_turbidez: { min: 0, max: 5 },
   valor_conductividad: { min: 0, max: 1500 },
 };
 

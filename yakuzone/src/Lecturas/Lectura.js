@@ -30,8 +30,8 @@ ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, T
 // La temperatura no tiene umbral normado, así que se muestra sin evaluar.
 const PARAMETROS = [
   { key: 'valor_temperatura', label: 'Temperatura', unidad: '°C', color: '#0E7C9B', icon: ThermostatIcon, umbral: null },
-  { key: 'valor_turbidez', label: 'Turbidez', unidad: ' NTU', color: '#9C27B0', icon: OpacityIcon, umbral: { min: 0, max: 1 } },
-  { key: 'valor_ph', label: 'pH', unidad: '', color: '#ED6C02', icon: ScienceIcon, umbral: { min: 6.5, max: 8.5 } },
+  { key: 'valor_turbidez', label: 'Turbidez', unidad: ' NTU', color: '#9C27B0', icon: OpacityIcon, umbral: { min: 0, max: 5 } },
+  { key: 'valor_ph', label: 'pH', unidad: '', color: '#ED6C02', icon: ScienceIcon, umbral: { min: 6.5, max: 9.0 } },
   { key: 'valor_conductividad', label: 'Conductividad', unidad: ' µS/cm', color: '#009688', icon: BoltIcon, umbral: { min: 0, max: 1500 } },
 ];
 

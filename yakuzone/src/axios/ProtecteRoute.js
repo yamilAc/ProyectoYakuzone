@@ -3,7 +3,7 @@ import { isAuthenticated, getUserRole } from './auth'; // Importamos funciones d
 
 // requiredRole: un solo rol (compatibilidad con el código existente).
 // requiredRoles: lista de roles permitidos, para páginas a las que puede
-// entrar más de un rol (por ejemplo, Mitigación: administrador y equipo_mitigacion).
+// entrar más de un rol (por ejemplo: ['administrador', 'empleado']).
 const ProtectedRoute = ({ element, requiredRole, requiredRoles }) => {
   if (!isAuthenticated()) {
     return <Navigate to="/login" />; // Redirige si no está autenticado

@@ -212,7 +212,7 @@ const Usuarios = () => {
           />
           <Chip
             icon={<HealingIcon sx={{ color: '#fff !important' }} />}
-            label={`${totalMitigacion} equipo de mitigación`}
+            label={`${totalMitigacion} jefe${totalMitigacion === 1 ? '' : 's'} de equipo`}
             sx={{ bgcolor: ROL_INFO.equipo_mitigacion.color, color: '#fff', fontWeight: 600, px: 0.5 }}
           />
         </Box>
@@ -395,7 +395,7 @@ const Usuarios = () => {
                   <Select name="rol" label="Rol" value={formData.rol} onChange={handleInputChange}>
                     <MenuItem value="administrador">Administrador</MenuItem>
                     <MenuItem value="empleado">Empleado</MenuItem>
-                    <MenuItem value="equipo_mitigacion">Equipo de mitigación</MenuItem>
+                    <MenuItem value="equipo_mitigacion">Equipo de mitigación (jefe de equipo)</MenuItem>
                   </Select>
                 </FormControl>
               </Grid>

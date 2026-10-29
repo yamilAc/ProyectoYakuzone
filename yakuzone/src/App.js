@@ -12,7 +12,7 @@ import DatosHistoricos from './DatosHistoricos/DatosHistoricos';
 import Zonas from './Zonas/zonas';
 import Dashboard from './Dashboard/Dashboard';
 import Sensores from './Sensores/Sensores';
-import Mitigacion from './Mitigacion/Mitigacion';
+import Equipos from './Equipos/Equipos';
 import Sidebar from './Sidebar';
 import { isAuthenticated, getUserRole, logout } from './axios/auth';
 import ProtectedRoute from './axios/ProtecteRoute';
@@ -82,8 +82,8 @@ function AppContent() {
                 element={<ProtectedRoute element={<Sensores />} requiredRole="administrador" />}
               />
               <Route
-                path="/Mitigacion"
-                element={<ProtectedRoute element={<Mitigacion />} requiredRoles={['administrador', 'equipo_mitigacion']} />}
+                path="/Equipos"
+                element={<ProtectedRoute element={<Equipos />} requiredRole="administrador" />}
               />
               <Route
                 path="/DatosHistoricos"
