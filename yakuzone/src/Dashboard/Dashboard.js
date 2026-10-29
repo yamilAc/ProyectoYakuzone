@@ -36,7 +36,15 @@ import axios from '../axios/axiosConfig';
 import PageHeader from '../components/PageHeader';
 import GraficoParametro, { PARAMETROS_GRAFICO, conUnidad, fueraDeRango, textoRango } from '../components/GraficoParametro';
 import { SensorMiniCardReal, SensorMiniCardPlaceholder } from './SensorMiniCard';
-import { evaluarEstadoSensor, evaluarParametros, crearIconoEstado, COLORES_ESTADO, ETIQUETAS_ESTADO } from '../utils/estadoSensor';
+import {
+  evaluarEstadoSensor,
+  evaluarParametros,
+  crearIconoEstado,
+  textoUltimaLectura,
+  COLORES_ESTADO,
+  ETIQUETAS_ESTADO,
+  LEYENDA_ESTADOS,
+} from '../utils/estadoSensor';
 
 const TOTAL_NODOS_PLANEADOS = 4;
 const MAX_SENSORES_VISIBLES = 8;
@@ -355,7 +363,7 @@ const Dashboard = () => {
                         {seleccionado ? `Mapa — ${seleccionado.n_serie}` : 'Mapa de sensores'}
                       </Typography>
                       <Stack direction="row" spacing={1}>
-                        {['verde', 'amarillo', 'rojo'].map((e) => (
+                        {LEYENDA_ESTADOS.map((e) => (
                           <ChipEstado key={e} estado={e} />
                         ))}
                       </Stack>
@@ -386,6 +394,7 @@ const Dashboard = () => {
                                   <div style={{ marginTop: 6, fontWeight: 700, color: estado ? COLORES_ESTADO[estado] : '#9e9e9e' }}>
                                     {estado ? ETIQUETAS_ESTADO[estado] : 'Sin lecturas todavía'}
                                   </div>
+                                  {ultima && <div style={{ fontSize: 12, color: '#78909C' }}>{textoUltimaLectura(ultima)}</div>}
                                   {parametros.length > 0 && (
                                     <div style={{ marginTop: 6, borderTop: '1px solid #eee', paddingTop: 6 }}>
                                       {parametros.map((p) => (
@@ -472,9 +481,7 @@ const Dashboard = () => {
                               {seleccionado.n_serie} · {seleccionado.ubicacion || 'Sin ubicación'}
                             </Typography>
                             <Typography variant="caption" color="text.secondary">
-                              {ultimaSeleccion
-                                ? `Última lectura: ${new Date(ultimaSeleccion.fecha_hora).toLocaleTimeString()} · toca un parámetro para ver su gráfica`
-                                : 'Sin lecturas todavía'}
+                              {ultimaSeleccion ? `${textoUltimaLectura(ultimaSeleccion)} · toca un parámetro para ver su gráfica` : 'Sin lecturas todavía'}
                             </Typography>
                           </Box>
                           <ChipEstado estado={evaluarEstadoSensor(ultimaSeleccion)} />
