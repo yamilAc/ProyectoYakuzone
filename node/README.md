@@ -24,9 +24,9 @@ Frontend React  <---- API REST (/api/...) con JWT ----  Express  <----------+
    mysql -u root -p < schema.sql
    ```
    Esto crea la base `yakuDB`, todas las tablas (`usuarios`, `sensores`,
-   `lecturas`, `equipos_mitigacion`, `miembros_equipo`, `alertas` y
-   `sugerencias_mitigacion`), un sensor de ejemplo (`SN-001`) y un usuario
-   administrador:
+   `lecturas`, `equipos_mitigacion`, `miembros_equipo`, `alertas`,
+   `sugerencias_mitigacion` y `fotos_mitigacion`), un sensor de ejemplo
+   (`SN-001`) y un usuario administrador:
    - correo: `admin@yakuzone.com`
    - contraseña: `Admin123!`
    (cámbiala luego desde la pantalla de Usuarios).
@@ -36,7 +36,11 @@ Frontend React  <---- API REST (/api/...) con JWT ----  Express  <----------+
    destructiva del rediseño de Notificaciones:
    ```
    mysql -u root -p yakuDB < migration_notificaciones.sql
+   mysql -u root -p yakuDB < migration_fotos_mitigacion.sql
    ```
+
+   Las fotos de evidencia que suben los jefes de equipo se guardan en
+   `uploads/mitigaciones/` (la carpeta se crea sola y no se sube a git).
 
 3. Levantar el servidor (API + broker MQTT, todo en un solo proceso):
    ```
@@ -84,7 +88,8 @@ Ver `.env.example`. `JWT_SECRET` ya viene generado con un valor aleatorio.
 - `GET/POST/PUT/DELETE /api/usuarios` (solo administrador)
 - `GET /api/sensores` — incluye los datos del propietario de cada vivienda
 - `POST/PUT/DELETE /api/sensores` (solo administrador)
-- `GET /api/lecturas` — últimas lecturas
+- `GET /api/lecturas?sensor_id=N&limite=100` — últimas lecturas (de todos los
+  sensores o de uno)
 - `GET /api/lecturas/ultimas` — última lectura de cada sensor (para colorear el mapa)
 - `GET /api/lecturas/:sensorId?fechaInicio=YYYY-MM-DD&fechaFin=YYYY-MM-DD`
 - `POST /api/lecturas` — inserción manual (pruebas sin MQTT)
@@ -95,8 +100,14 @@ Ver `.env.example`. `JWT_SECRET` ya viene generado con un valor aleatorio.
   equipo asignado e historial de alertas pendientes y mitigadas del sensor
 - `PUT /api/alertas/:id/asignar` — asigna la alerta a un equipo y avisa por
   correo a su jefe (administrador y empleado)
-- `PUT /api/alertas/:id/mitigada` — registra qué se hizo (jefe del equipo
-  asignado o administrador)
+- `GET /api/alertas/historial?sensor_id&estado&parametro&desde&hasta&pagina&por_pagina`
+  — historial completo paginado (solo administrador)
+- `PUT /api/alertas/:id/mitigada` (multipart) — el jefe del equipo asignado
+  registra qué se hizo (`observacion`) y sube las 3 fotos obligatorias
+  (`equipo`, `casa`, `trabajo`; JPG, PNG o WebP de hasta 5 MB)
+- `GET /api/alertas/:id/fotos/:tipo` — descarga una foto de evidencia
+- `GET /api/reportes/alertas?sensor_id=N&desde&hasta&formato=pdf|xlsx` y
+  `GET /api/reportes/general?desde&hasta&formato=pdf|xlsx` (solo administrador)
 - `GET /api/equipos` (administrador y empleado),
   `POST/PUT/DELETE /api/equipos` (solo administrador)
 

@@ -18,6 +18,15 @@ import logo from './images/logoYakuzone.png';
 export const SIDEBAR_WIDTH = 240;
 
 const buildLinks = (userRole) => {
+  // El jefe de un equipo de mitigación solo necesita ver la zona y las
+  // alertas asignadas a su equipo.
+  if (userRole === 'equipo_mitigacion') {
+    return [
+      { to: '/', label: 'Inicio', icon: HomeIcon },
+      { to: '/zonas', label: 'Zonas', icon: RoomIcon },
+      { to: '/Alerta', label: 'Notificaciones', icon: NotificationsIcon },
+    ];
+  }
   const base = [
     { to: '/', label: 'Inicio', icon: HomeIcon },
     { to: '/Dashboard', label: 'Dashboard', icon: DashboardIcon },

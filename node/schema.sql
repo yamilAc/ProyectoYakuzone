@@ -1,7 +1,7 @@
 -- Yakuzone - Esquema de base de datos (MySQL)
 -- ADVERTENCIA: este script BORRA y vuelve a crear todas las tablas del
--- sistema (usuarios, sensores, lecturas, equipos de mitigación, alertas y
--- sugerencias). Úsalo en tu entorno de desarrollo/demo.
+-- sistema (usuarios, sensores, lecturas, equipos de mitigación, alertas,
+-- sugerencias y fotos de mitigación). Úsalo en tu entorno de desarrollo/demo.
 -- Si tu base ya tenía datos en esas tablas (u otras) que quieres conservar,
 -- avisa antes de correrlo y se prepara una migración no destructiva.
 
@@ -14,6 +14,7 @@ USE yakuDB;
 -- "Cannot delete or update a parent row: a foreign key constraint fails".
 SET FOREIGN_KEY_CHECKS = 0;
 
+DROP TABLE IF EXISTS fotos_mitigacion;
 DROP TABLE IF EXISTS sugerencias_mitigacion;
 DROP TABLE IF EXISTS alertas;
 DROP TABLE IF EXISTS miembros_equipo;
@@ -131,6 +132,21 @@ CREATE TABLE sugerencias_mitigacion (
   creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (alerta_id) REFERENCES alertas(id) ON DELETE CASCADE,
   FOREIGN KEY (sensor_id) REFERENCES sensores(id) ON DELETE CASCADE
+);
+
+-- Fotos de evidencia que sube el jefe del equipo al marcar la alerta como
+-- mitigada: el equipo en el lugar, la casa y el trabajo realizado. Los
+-- archivos se guardan en node/uploads/mitigaciones/ y aquí solo su nombre.
+CREATE TABLE fotos_mitigacion (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  alerta_id INT NOT NULL,
+  tipo ENUM('equipo','casa','trabajo') NOT NULL,
+  archivo VARCHAR(255) NOT NULL,
+  subido_por INT,
+  subido_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_foto_alerta_tipo (alerta_id, tipo),
+  FOREIGN KEY (alerta_id) REFERENCES alertas(id) ON DELETE CASCADE,
+  FOREIGN KEY (subido_por) REFERENCES usuarios(id) ON DELETE SET NULL
 );
 
 SET FOREIGN_KEY_CHECKS = 1;

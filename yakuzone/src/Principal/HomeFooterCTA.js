@@ -4,8 +4,10 @@ import { Link } from 'react-router-dom';
 import RoomIcon from '@mui/icons-material/Room';
 import SchoolIcon from '@mui/icons-material/School';
 import { motion } from 'framer-motion';
+import { getUserRole } from '../axios/auth';
 
 const HomeFooterCTA = () => {
+  const esJefe = getUserRole() === 'equipo_mitigacion';
   return (
     <Box
       sx={{
@@ -30,12 +32,12 @@ const HomeFooterCTA = () => {
           </Typography>
           <Button
             component={Link}
-            to="/Lectura"
+            to={esJefe ? '/Alerta' : '/Lectura'}
             variant="contained"
             size="large"
             sx={{ bgcolor: '#fff', color: 'primary.dark', fontWeight: 700, '&:hover': { bgcolor: '#f0f7fa' } }}
           >
-            Ir al Panel de Monitoreo
+            {esJefe ? 'Ir a mis alertas' : 'Ir al Panel de Monitoreo'}
           </Button>
 
           <Stack

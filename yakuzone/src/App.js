@@ -17,6 +17,8 @@ import Sidebar from './Sidebar';
 import { isAuthenticated, getUserRole, logout } from './axios/auth';
 import ProtectedRoute from './axios/ProtecteRoute';
 import GraficoSensor from './DatosHistoricos/graficoSensor';
+import HistorialAlertas from './DatosHistoricos/HistorialAlertas';
+import AvisosAlertas from './components/AvisosAlertas';
 import Reporte from './Reporte';
 
 const pageVariants = {
@@ -43,6 +45,7 @@ function AppContent() {
   return (
     <div className="App" style={{ display: 'flex' }}>
       {isAuth && <Sidebar userRole={userRole} onLogout={handleLogout} />}
+      {isAuth && <AvisosAlertas key={userRole} userRole={userRole} />}
 
       <Box
         component="main"
@@ -65,11 +68,20 @@ function AppContent() {
             <Routes location={location}>
               <Route path="/" element={isAuth ? <Home /> : <Navigate to="/login" />} />
               <Route path="/login" element={<LoginComponent setAuth={setIsAuth} />} />
-              {/* Rutas accesibles para ambos roles */}
-              <Route path="/Dashboard" element={isAuth ? <Dashboard /> : <Navigate to="/login" />} />
+              {/* Rutas accesibles para todos los roles (el jefe de equipo de
+                  mitigación solo usa Inicio, Zonas y Notificaciones) */}
               <Route path="/zonas" element={isAuth ? <Zonas /> : <Navigate to="/login" />} />
-              <Route path="/Lectura" element={isAuth ? <Lectura /> : <Navigate to="/login" />} />
               <Route path="/Alerta" element={isAuth ? <Alerta /> : <Navigate to="/login" />} />
+
+              {/* Rutas de administradores y empleados */}
+              <Route
+                path="/Dashboard"
+                element={<ProtectedRoute element={<Dashboard />} requiredRoles={['administrador', 'empleado']} />}
+              />
+              <Route
+                path="/Lectura"
+                element={<ProtectedRoute element={<Lectura />} requiredRoles={['administrador', 'empleado']} />}
+              />
               <Route path="/Reporte" element={<Reporte />} />
 
               {/* Rutas accesibles solo para administradores */}
@@ -92,6 +104,10 @@ function AppContent() {
               <Route
                 path="/graficoSensor"
                 element={<ProtectedRoute element={<GraficoSensor />} requiredRole="administrador" />}
+              />
+              <Route
+                path="/HistorialAlertas"
+                element={<ProtectedRoute element={<HistorialAlertas />} requiredRole="administrador" />}
               />
               <Route path="*" element={<Navigate to={isAuth ? '/' : '/login'} replace />} />
             </Routes>

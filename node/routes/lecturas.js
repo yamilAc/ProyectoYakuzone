@@ -4,16 +4,21 @@ const db = require('../db');
 const { authenticate } = require('../middleware/auth');
 const { registrarLectura } = require('../services/lecturasService');
 
-// GET /api/lecturas - últimas lecturas registradas (todas las estaciones),
-// usada por la vista de monitoreo en tiempo real.
+// GET /api/lecturas?sensor_id=N&limite=100 - últimas lecturas registradas
+// (de todos los sensores, o solo de uno con sensor_id), usada por las vistas
+// de monitoreo en tiempo real. limite: entre 1 y 500, 100 por defecto.
 router.get('/', authenticate, async (req, res) => {
+  const sensorId = Number(req.query.sensor_id) || null;
+  const limite = Math.min(500, Math.max(1, parseInt(req.query.limite, 10) || 100));
   try {
     const [rows] = await db.query(
       `SELECT l.*, s.n_serie AS numero_serie
        FROM lecturas l
        JOIN sensores s ON s.id = l.sensor_id
+       ${sensorId ? 'WHERE l.sensor_id = ?' : ''}
        ORDER BY l.fecha_hora DESC
-       LIMIT 100`
+       LIMIT ?`,
+      sensorId ? [sensorId, limite] : [limite]
     );
     res.json(rows.reverse()); // orden ascendente, para graficar en el tiempo
   } catch (err) {

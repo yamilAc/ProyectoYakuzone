@@ -1,9 +1,16 @@
+const path = require('path');
 const express = require('express');
 const router = express.Router();
 const db = require('../db');
 const { authenticate, authorize } = require('../middleware/auth');
-const { equiposDelJefe, obtenerDetalleAlerta, historialDelSensor } = require('../services/alertasService');
+const {
+  equiposDelJefe,
+  obtenerDetalleAlerta,
+  historialDelSensor,
+  construirFiltrosAlertas,
+} = require('../services/alertasService');
 const { notificarAsignacion } = require('../services/mitigacionService');
+const { CARPETA_FOTOS, TIPOS_FOTO, recibirFotos, borrarArchivos, esImagenValida } = require('../utils/subidas');
 
 router.use(authenticate);
 
@@ -68,6 +75,33 @@ router.get('/resumen', async (req, res) => {
       resumen[r.estado] = r.total;
     });
     res.json(resumen);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/alertas/historial?sensor_id&estado&parametro&desde=YYYY-MM-DD&hasta=YYYY-MM-DD&pagina=1&por_pagina=25
+// Historial completo de alertas, paginado (Datos Históricos, solo administradores).
+router.get('/historial', authorize('administrador'), async (req, res) => {
+  const { condiciones, params } = construirFiltrosAlertas(req.query);
+  const where = condiciones.length ? `WHERE ${condiciones.join(' AND ')}` : '';
+  const pagina = Math.max(1, parseInt(req.query.pagina, 10) || 1);
+  const porPagina = Math.min(100, Math.max(1, parseInt(req.query.por_pagina, 10) || 25));
+
+  try {
+    const [[{ total }]] = await db.query(`SELECT COUNT(*) AS total FROM alertas a ${where}`, params);
+    const [alertas] = await db.query(
+      `SELECT a.id, a.sensor_id, a.parametro, a.valor, a.fecha_hora, a.estado, a.asignado_en, a.mitigado_en,
+              s.n_serie AS numero_serie, s.ubicacion, e.nombre AS equipo_nombre
+       FROM alertas a
+       JOIN sensores s ON s.id = a.sensor_id
+       LEFT JOIN equipos_mitigacion e ON e.id = a.equipo_id
+       ${where}
+       ORDER BY a.fecha_hora DESC
+       LIMIT ? OFFSET ?`,
+      [...params, porPagina, (pagina - 1) * porPagina]
+    );
+    res.json({ total, pagina, por_pagina: porPagina, alertas });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -156,39 +190,103 @@ router.put('/:id/asignar', authorize('administrador', 'empleado'), async (req, r
   }
 });
 
-// PUT /api/alertas/:id/mitigada - registra que la alerta ya se atendió y
-// qué se hizo. Lo puede hacer el jefe del equipo asignado o un administrador.
-router.put('/:id/mitigada', authorize('administrador', 'equipo_mitigacion'), async (req, res) => {
-  const observacion = String(req.body.observacion || '').trim();
-  if (observacion.length < 5) {
-    return res.status(400).json({ error: 'Describe brevemente qué se hizo para mitigar la alerta' });
-  }
-  if (observacion.length > 500) {
-    return res.status(400).json({ error: 'La descripción puede tener hasta 500 caracteres' });
-  }
-
+// Antes de recibir archivos se comprueba que quien cierra la alerta es el
+// jefe del equipo asignado y que la alerta sigue asignada.
+async function verificarPuedeMitigar(req, res, next) {
   try {
     const [alertas] = await db.query('SELECT estado, equipo_id FROM alertas WHERE id = ?', [req.params.id]);
     if (alertas.length === 0) {
       return res.status(404).json({ error: 'Alerta no encontrada' });
     }
-    if (esJefe(req)) {
-      const equiposPropios = await equiposDelJefe(req.user.id);
-      if (!equiposPropios.includes(alertas[0].equipo_id)) {
-        return res.status(403).json({ error: 'Esta alerta no está asignada a tu equipo' });
-      }
+    if (alertas[0].estado === 'mitigada') {
+      return res.status(400).json({ error: 'La alerta ya fue marcada como mitigada' });
     }
+    const equiposPropios = await equiposDelJefe(req.user.id);
+    if (alertas[0].estado !== 'asignada' || !equiposPropios.includes(alertas[0].equipo_id)) {
+      return res.status(403).json({ error: 'Esta alerta no está asignada a tu equipo' });
+    }
+    next();
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+}
 
-    const [resultado] = await db.query(
+// PUT /api/alertas/:id/mitigada (multipart/form-data) - el jefe del equipo
+// asignado registra qué se hizo (campo "observacion") y sube las 3 fotos de
+// evidencia obligatorias: "equipo", "casa" y "trabajo".
+router.put('/:id/mitigada', authorize('equipo_mitigacion'), verificarPuedeMitigar, recibirFotos, async (req, res) => {
+  const fotos = req.files || {};
+  const observacion = String(req.body.observacion || '').trim();
+
+  let error = null;
+  if (!TIPOS_FOTO.every((tipo) => fotos[tipo])) {
+    error = 'Sube las 3 fotos: el equipo, la casa y el trabajo realizado';
+  } else if (!TIPOS_FOTO.every((tipo) => esImagenValida(fotos[tipo][0].path))) {
+    error = 'Alguno de los archivos no es una foto válida (JPG, PNG o WebP)';
+  } else if (observacion.length < 5) {
+    error = 'Describe brevemente qué se hizo para mitigar la alerta';
+  } else if (observacion.length > 500) {
+    error = 'La descripción puede tener hasta 500 caracteres';
+  }
+  if (error) {
+    borrarArchivos(fotos);
+    return res.status(400).json({ error });
+  }
+
+  const conexion = await db.getConnection();
+  try {
+    await conexion.beginTransaction();
+    const [resultado] = await conexion.query(
       `UPDATE alertas
        SET estado = 'mitigada', mitigado_por = ?, mitigado_en = NOW(), observacion_mitigacion = ?, leida = 1
-       WHERE id = ? AND estado <> 'mitigada'`,
+       WHERE id = ? AND estado = 'asignada'`,
       [req.user.id, observacion, req.params.id]
     );
     if (resultado.affectedRows === 0) {
+      await conexion.rollback();
+      borrarArchivos(fotos);
       return res.status(400).json({ error: 'La alerta ya fue marcada como mitigada' });
     }
+    await conexion.query('INSERT INTO fotos_mitigacion (alerta_id, tipo, archivo, subido_por) VALUES ?', [
+      TIPOS_FOTO.map((tipo) => [req.params.id, tipo, fotos[tipo][0].filename, req.user.id]),
+    ]);
+    await conexion.commit();
     res.json({ ok: true });
+  } catch (err) {
+    await conexion.rollback();
+    borrarArchivos(fotos);
+    res.status(500).json({ error: err.message });
+  } finally {
+    conexion.release();
+  }
+});
+
+// GET /api/alertas/:id/fotos/:tipo - devuelve una foto de evidencia. Las ven
+// administradores, empleados y el jefe del equipo que atendió la alerta.
+router.get('/:id/fotos/:tipo', async (req, res) => {
+  if (!TIPOS_FOTO.includes(req.params.tipo)) {
+    return res.status(404).json({ error: 'Foto no encontrada' });
+  }
+  try {
+    const [rows] = await db.query(
+      `SELECT f.archivo, a.equipo_id FROM fotos_mitigacion f
+       JOIN alertas a ON a.id = f.alerta_id
+       WHERE f.alerta_id = ? AND f.tipo = ?`,
+      [req.params.id, req.params.tipo]
+    );
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'Foto no encontrada' });
+    }
+    if (esJefe(req)) {
+      const equiposPropios = await equiposDelJefe(req.user.id);
+      if (!equiposPropios.includes(rows[0].equipo_id)) {
+        return res.status(403).json({ error: 'Esta alerta no está asignada a tu equipo' });
+      }
+    }
+    res.set('Cache-Control', 'private, max-age=3600');
+    res.sendFile(path.join(CARPETA_FOTOS, path.basename(rows[0].archivo)), (err) => {
+      if (err && !res.headersSent) res.status(404).json({ error: 'El archivo de la foto ya no existe' });
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
