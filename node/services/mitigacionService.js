@@ -60,7 +60,7 @@ function textoWhatsapp({ alerta, sensor, propietario, equipo }) {
     propietario ? `Propietario: ${propietario.nombre} · Tel. ${propietario.telefono}` : null,
     propietario && propietario.telefono_emergencia ? `Teléfono de emergencia: ${propietario.telefono_emergencia}` : null,
     alerta.instrucciones ? `Instrucciones: ${alerta.instrucciones}` : null,
-    'Ingresa a Yakuzone > Notificaciones para ver el detalle y registrar la mitigación con sus 3 fotos.',
+    'Ingresa a Yakuzone > Notificaciones para ver el detalle y enviar el informe de la visita con sus fotos.',
   ]
     .filter(Boolean)
     .join('\n');
@@ -151,7 +151,7 @@ async function avisarPorCorreo(detalle) {
     ${propietario ? '' : '<p>El sensor todavía no tiene registrados los datos del propietario.</p>'}
     ${alerta.instrucciones ? `<p><strong>Instrucciones (${escaparHtml(alerta.asignado_por)}):</strong><br/>${escaparHtml(alerta.instrucciones)}</p>` : ''}
     ${alerta.sugerencia ? `<p><strong>Sugerencia de mitigación (IA):</strong><br/>${escaparHtml(alerta.sugerencia).replace(/\n/g, '<br/>')}</p>` : ''}
-    <p style="color:#888;font-size:12px;">Ingresa a Yakuzone, sección Notificaciones, para ver el detalle y marcar la alerta como mitigada cuando tu equipo termine. La sugerencia de la IA es una orientación inicial automatizada y no reemplaza el criterio profesional de un especialista en tratamiento de agua.</p>
+    <p style="color:#888;font-size:12px;">Ingresa a Yakuzone, sección Notificaciones, para ver el detalle y enviar el informe de la visita (con sus fotos) cuando tu equipo termine. La sugerencia de la IA es una orientación inicial automatizada y no reemplaza el criterio profesional de un especialista en tratamiento de agua.</p>
   `;
 
   return enviarCorreo({ to: equipo.jefe_email, subject: asunto, html });

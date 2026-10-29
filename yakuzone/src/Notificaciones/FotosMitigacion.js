@@ -7,8 +7,8 @@ import AddAPhotoIcon from '@mui/icons-material/AddAPhoto';
 import CloseIcon from '@mui/icons-material/Close';
 import axios from '../axios/axiosConfig';
 
-// Las 3 fotos de evidencia que el jefe del equipo sube al marcar una alerta
-// como mitigada (mismos nombres que espera el backend).
+// Las 3 fotos de evidencia del informe de una visita (mismos nombres que
+// espera el backend).
 export const TIPOS_FOTO = [
   { tipo: 'equipo', label: 'El equipo', descripcion: 'El equipo en el lugar', icon: GroupsIcon },
   { tipo: 'casa', label: 'La casa', descripcion: 'La vivienda atendida', icon: HomeIcon },
@@ -27,8 +27,9 @@ const MiniFoto = ({ url, etiqueta, onClick, alto }) => (
   </ButtonBase>
 );
 
-// Selector de las 3 fotos obligatorias, con vista previa. fotos: { equipo, casa, trabajo } (File o null).
-export const SelectorFotos = ({ fotos, onChange, disabled }) => {
+// Selector de las 3 fotos, con vista previa. fotos: { equipo, casa, trabajo }
+// (File o null); opcionales: tipos que se pueden dejar sin foto.
+export const SelectorFotos = ({ fotos, onChange, disabled, opcionales = [] }) => {
   const previas = useMemo(
     () => Object.fromEntries(TIPOS_FOTO.map(({ tipo }) => [tipo, fotos[tipo] ? URL.createObjectURL(fotos[tipo]) : null])),
     [fotos]
@@ -82,6 +83,7 @@ export const SelectorFotos = ({ fotos, onChange, disabled }) => {
                 </Box>
                 <Typography variant="body2" fontWeight={600}>
                   {label}
+                  {opcionales.includes(tipo) && ' (opcional)'}
                 </Typography>
                 <Typography variant="caption" color="text.secondary">
                   {descripcion}
@@ -95,10 +97,10 @@ export const SelectorFotos = ({ fotos, onChange, disabled }) => {
   );
 };
 
-// Fotos de evidencia de una alerta ya mitigada. Se descargan con la sesión
+// Fotos de evidencia del informe de una visita. Se descargan con la sesión
 // iniciada (no son públicas), por eso se piden con axios y no con un <img src>.
-// alto: altura de cada miniatura en píxeles.
-export const FotosEvidencia = ({ alertaId, tipos, alto = 110 }) => {
+// alertaId + informeId identifican el informe; alto: altura de cada miniatura.
+export const FotosEvidencia = ({ alertaId, informeId, tipos, alto = 110 }) => {
   const clave = tipos.join(',');
   const [urls, setUrls] = useState(null);
   const [ampliada, setAmpliada] = useState(null);
@@ -109,7 +111,7 @@ export const FotosEvidencia = ({ alertaId, tipos, alto = 110 }) => {
     Promise.all(
       clave.split(',').filter(Boolean).map((tipo) =>
         axios
-          .get(`/alertas/${alertaId}/fotos/${tipo}`, { responseType: 'blob' })
+          .get(`/alertas/${alertaId}/informes/${informeId}/fotos/${tipo}`, { responseType: 'blob' })
           .then((res) => {
             const url = URL.createObjectURL(res.data);
             if (activo) creadas.push(url);
@@ -125,7 +127,7 @@ export const FotosEvidencia = ({ alertaId, tipos, alto = 110 }) => {
       activo = false;
       creadas.forEach((url) => URL.revokeObjectURL(url));
     };
-  }, [alertaId, clave]);
+  }, [alertaId, informeId, clave]);
 
   if (!urls) {
     return <CircularProgress size={20} />;

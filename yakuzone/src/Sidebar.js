@@ -47,9 +47,9 @@ const buildLinks = (userRole) => {
   return base;
 };
 
-// Alertas que esperan acción: sin asignar (administrador y empleado) o
-// asignadas a su equipo (jefe). Se muestran en un círculo junto a
-// Notificaciones por si no se vio el aviso emergente.
+// Alertas que esperan acción: sin asignar o con informe por revisar
+// (administrador y empleado), o asignadas a su equipo (jefe). Se muestran en
+// un círculo junto a Notificaciones por si no se vio el aviso emergente.
 const useAlertasPorAtender = (userRole) => {
   const [cantidad, setCantidad] = useState(0);
   useEffect(() => {
@@ -58,7 +58,7 @@ const useAlertasPorAtender = (userRole) => {
     const actualizar = async () => {
       try {
         const res = await axios.get('/alertas/resumen');
-        if (activo) setCantidad(userRole === 'equipo_mitigacion' ? res.data.asignada : res.data.pendiente);
+        if (activo) setCantidad(userRole === 'equipo_mitigacion' ? res.data.asignada : res.data.pendiente + (res.data.en_revision || 0));
       } catch {
         // Sin conexión: se vuelve a intentar en el próximo ciclo.
       }

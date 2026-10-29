@@ -44,7 +44,7 @@ async function obtenerDetalleAlerta(id) {
   if (r.equipo_id) {
     [miembros] = await db.query('SELECT nombre, telefono FROM miembros_equipo WHERE equipo_id = ? ORDER BY id', [r.equipo_id]);
   }
-  const [fotos] = await db.query('SELECT tipo FROM fotos_mitigacion WHERE alerta_id = ?', [id]);
+  const informes = await listarInformes(id);
 
   return {
     alerta: {
@@ -67,9 +67,6 @@ async function obtenerDetalleAlerta(id) {
       mitigado_por: nombreCompleto(r.mitigado_por_nombre, r.mitigado_por_apellido),
       mitigado_en: r.mitigado_en,
       observacion_mitigacion: r.observacion_mitigacion,
-      // Tipos de foto de evidencia subidos ('equipo', 'casa', 'trabajo');
-      // cada una se descarga aparte desde GET /api/alertas/:id/fotos/:tipo.
-      fotos: fotos.map((f) => f.tipo),
     },
     sensor: {
       id: r.sensor_id,
@@ -99,7 +96,44 @@ async function obtenerDetalleAlerta(id) {
           miembros,
         }
       : null,
+    // Visitas del equipo, la más reciente primero (ver listarInformes).
+    informes,
   };
+}
+
+// Informes de las visitas de los equipos a una alerta, el más reciente
+// primero: resultado, descripción, revisión y los tipos de foto subidos
+// ('equipo', 'casa', 'trabajo'; cada una se descarga desde
+// GET /api/alertas/:id/informes/:informeId/fotos/:tipo).
+async function listarInformes(alertaId) {
+  const [informes] = await db.query(
+    `SELECT i.id, i.resultado, i.observacion, i.enviado_en, i.revision, i.revisado_en, i.comentario_revision,
+            e.nombre AS equipo_nombre,
+            ue.nombre AS enviado_por_nombre, ue.apellido AS enviado_por_apellido,
+            ur.nombre AS revisado_por_nombre, ur.apellido AS revisado_por_apellido
+     FROM informes_mitigacion i
+     LEFT JOIN equipos_mitigacion e ON e.id = i.equipo_id
+     LEFT JOIN usuarios ue ON ue.id = i.enviado_por
+     LEFT JOIN usuarios ur ON ur.id = i.revisado_por
+     WHERE i.alerta_id = ?
+     ORDER BY i.id DESC`,
+    [alertaId]
+  );
+  if (informes.length === 0) return [];
+  const [fotos] = await db.query('SELECT informe_id, tipo FROM fotos_mitigacion WHERE informe_id IN (?)', [informes.map((i) => i.id)]);
+  return informes.map((i) => ({
+    id: i.id,
+    resultado: i.resultado,
+    observacion: i.observacion,
+    equipo: i.equipo_nombre,
+    enviado_por: nombreCompleto(i.enviado_por_nombre, i.enviado_por_apellido),
+    enviado_en: i.enviado_en,
+    revision: i.revision,
+    revisado_por: nombreCompleto(i.revisado_por_nombre, i.revisado_por_apellido),
+    revisado_en: i.revisado_en,
+    comentario_revision: i.comentario_revision,
+    fotos: fotos.filter((f) => f.informe_id === i.id).map((f) => f.tipo),
+  }));
 }
 
 // Las demás alertas del mismo sensor, separadas en pendientes (todavía sin
@@ -124,7 +158,7 @@ async function historialDelSensor(sensorId, excluirAlertaId) {
   return { pendientes, mitigadas };
 }
 
-const ESTADOS = ['pendiente', 'asignada', 'mitigada'];
+const ESTADOS = ['pendiente', 'asignada', 'en_revision', 'mitigada'];
 const PARAMETROS = ['ph', 'turbidez', 'conductividad'];
 const FECHA_VALIDA = /^\d{4}-\d{2}-\d{2}$/;
 

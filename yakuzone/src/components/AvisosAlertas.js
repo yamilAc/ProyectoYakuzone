@@ -11,39 +11,49 @@ const INTERVALO_MS = 10000;
 const DURACION_AVISO_MS = 20000;
 const MAX_AVISOS = 3;
 
-// Aviso emergente de alertas nuevas, visible en cualquier pantalla del
-// sistema: administradores y empleados ven cada alerta nueva sin asignar; el
-// jefe de un equipo de mitigación, cada alerta nueva asignada a su equipo.
-// Al tocar el aviso se abre el detalle de la alerta (datos del sensor, mapa
-// y propietario).
+// Qué se anuncia a cada rol: administradores y empleados, cada alerta nueva
+// sin asignar y cada informe de visita que llega para revisar; el jefe de un
+// equipo de mitigación, cada alerta asignada (o reasignada) a su equipo.
+const FUENTES_GESTION = [
+  { estado: 'pendiente', titulo: 'Nueva alerta de calidad del agua', color: 'error.main' },
+  { estado: 'en_revision', titulo: 'Informe de visita por revisar', color: '#7B1FA2' },
+];
+const FUENTES_JEFE = [{ estado: 'asignada', titulo: 'Nueva alerta asignada a tu equipo', color: 'error.main' }];
+
+// Aviso emergente, visible en cualquier pantalla del sistema. Al tocarlo se
+// abre el detalle de la alerta (datos del sensor, mapa y propietario).
 const AvisosAlertas = ({ userRole }) => {
-  const esJefe = userRole === 'equipo_mitigacion';
-  const estado = esJefe ? 'asignada' : 'pendiente';
-  // Alertas ya conocidas: las que existían al entrar no se anuncian, solo las
-  // que aparezcan después.
-  const conocidas = useRef(null);
+  const fuentes = userRole === 'equipo_mitigacion' ? FUENTES_JEFE : FUENTES_GESTION;
+  // Alertas ya conocidas por estado: las que existían al entrar no se
+  // anuncian, solo las que aparezcan después.
+  const conocidas = useRef({});
   const [avisos, setAvisos] = useState([]);
   const [alertaAbierta, setAlertaAbierta] = useState(null);
 
   useEffect(() => {
     let activo = true;
-    conocidas.current = null;
+    conocidas.current = {};
     const revisar = async () => {
-      try {
-        const res = await axios.get('/alertas', { params: { estado } });
-        if (!activo) return;
-        if (conocidas.current === null) {
-          conocidas.current = new Set(res.data.map((a) => a.id));
-          return;
+      for (const fuente of fuentes) {
+        try {
+          const res = await axios.get('/alertas', { params: { estado: fuente.estado } });
+          if (!activo) return;
+          const yaVistas = conocidas.current[fuente.estado];
+          // Una alerta que sale de este estado y vuelve (p. ej. reasignada
+          // tras una visita no aprobada) se anuncia de nuevo.
+          conocidas.current[fuente.estado] = new Set(res.data.map((a) => a.id));
+          if (!yaVistas) continue;
+          const nuevas = res.data.filter((a) => !yaVistas.has(a.id));
+          if (nuevas.length > 0) {
+            const recibido = Date.now();
+            setAvisos((actuales) =>
+              [...nuevas.map((a) => ({ ...a, clave: `${fuente.estado}-${a.id}-${recibido}`, titulo: fuente.titulo, color: fuente.color, recibido })), ...actuales].slice(0, MAX_AVISOS)
+            );
+            avisarCambioAlertas(); // el contador del menú se actualiza al mismo tiempo que el aviso
+          }
+        } catch {
+          // Sin conexión o sesión vencida: se vuelve a intentar en el próximo ciclo.
         }
-        const nuevas = res.data.filter((a) => !conocidas.current.has(a.id));
-        nuevas.forEach((a) => conocidas.current.add(a.id));
-        if (nuevas.length > 0) {
-          setAvisos((actuales) => [...nuevas.map((a) => ({ ...a, recibido: Date.now() })), ...actuales].slice(0, MAX_AVISOS));
-          avisarCambioAlertas(); // el contador del menú se actualiza al mismo tiempo que el aviso
-        }
-      } catch {
-        // Sin conexión o sesión vencida: se vuelve a intentar en el próximo ciclo.
       }
     };
     revisar();
@@ -52,7 +62,7 @@ const AvisosAlertas = ({ userRole }) => {
       activo = false;
       clearInterval(interval);
     };
-  }, [estado]);
+  }, [fuentes]);
 
   // Cada aviso se cierra solo después de un rato (la alerta sigue en Notificaciones).
   useEffect(() => {
@@ -63,11 +73,11 @@ const AvisosAlertas = ({ userRole }) => {
     return () => clearInterval(timer);
   }, [avisos.length]);
 
-  const cerrar = (id) => setAvisos((actuales) => actuales.filter((a) => a.id !== id));
+  const cerrar = (clave) => setAvisos((actuales) => actuales.filter((a) => a.clave !== clave));
 
-  const abrir = (id) => {
-    cerrar(id);
-    setAlertaAbierta(id);
+  const abrir = (aviso) => {
+    cerrar(aviso.clave);
+    setAlertaAbierta(aviso.id);
   };
 
   return (
@@ -89,7 +99,7 @@ const AvisosAlertas = ({ userRole }) => {
         <AnimatePresence>
           {avisos.map((a) => (
             <motion.div
-              key={a.id}
+              key={a.clave}
               layout
               initial={{ opacity: 0, x: 60 }}
               animate={{ opacity: 1, x: 0 }}
@@ -99,23 +109,23 @@ const AvisosAlertas = ({ userRole }) => {
             >
               <Paper
                 elevation={8}
-                onClick={() => abrir(a.id)}
+                onClick={() => abrir(a)}
                 sx={{
                   p: 1.5,
                   pr: 0.5,
                   cursor: 'pointer',
                   borderLeft: '5px solid',
-                  borderColor: 'error.main',
+                  borderColor: a.color,
                   display: 'flex',
                   gap: 1.2,
                   alignItems: 'flex-start',
                   '&:hover': { boxShadow: 12 },
                 }}
               >
-                <NotificationsActiveIcon color="error" sx={{ mt: 0.3 }} />
+                <NotificationsActiveIcon sx={{ mt: 0.3, color: a.color }} />
                 <Box sx={{ flex: 1, minWidth: 0 }}>
                   <Typography variant="subtitle2" fontWeight={700}>
-                    {esJefe ? 'Nueva alerta asignada a tu equipo' : 'Nueva alerta de calidad del agua'}
+                    {a.titulo}
                   </Typography>
                   <Typography variant="body2">
                     {a.numero_serie} — {textoParametro(a.parametro)}: {textoValor(a.parametro, a.valor)}
@@ -134,7 +144,7 @@ const AvisosAlertas = ({ userRole }) => {
                   aria-label="Cerrar aviso"
                   onClick={(e) => {
                     e.stopPropagation();
-                    cerrar(a.id);
+                    cerrar(a.clave);
                   }}
                 >
                   <CloseIcon fontSize="small" />

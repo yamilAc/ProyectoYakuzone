@@ -14,11 +14,20 @@ export const UNIDADES_PARAMETRO = {
   conductividad: ' µS/cm',
 };
 
-// Seguimiento de una alerta: pendiente (sin equipo) -> asignada -> mitigada.
+// Seguimiento de una alerta: pendiente (sin asignar) -> asignada ->
+// en_revision (el equipo envió el informe de su visita) -> mitigada (un
+// administrador o empleado aprobó el informe).
 export const ESTADOS_ALERTA = {
   pendiente: { label: 'Sin asignar', color: '#D32F2F' },
   asignada: { label: 'Asignada', color: '#ED6C02' },
+  en_revision: { label: 'Pendiente de revisión', color: '#7B1FA2' },
   mitigada: { label: 'Mitigada', color: '#2E7D32' },
+};
+
+// Resultado que informa el equipo después de su visita.
+export const RESULTADOS_VISITA = {
+  realizada: { label: 'Mitigación realizada', color: '#2E7D32' },
+  no_realizada: { label: 'No se pudo realizar', color: '#D32F2F' },
 };
 
 export const textoParametro = (parametro) => ETIQUETAS_PARAMETRO[parametro] || parametro;

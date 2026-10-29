@@ -87,9 +87,10 @@ function AppContent() {
                 path="/Usuarios"
                 element={<ProtectedRoute element={<Usuarios />} requiredRole="administrador" />}
               />
+              {/* El empleado entra en modo solo lectura (desde el Dashboard) */}
               <Route
                 path="/Sensores"
-                element={<ProtectedRoute element={<Sensores />} requiredRole="administrador" />}
+                element={<ProtectedRoute element={<Sensores />} requiredRoles={['administrador', 'empleado']} />}
               />
               <Route
                 path="/Equipos"
