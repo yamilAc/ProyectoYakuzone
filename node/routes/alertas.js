@@ -3,12 +3,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 const { authenticate, authorize } = require('../middleware/auth');
-const {
-  equiposDelJefe,
-  obtenerDetalleAlerta,
-  historialDelSensor,
-  construirFiltrosAlertas,
-} = require('../services/alertasService');
+const { equiposDelJefe, obtenerDetalleAlerta, historialDelSensor } = require('../services/alertasService');
 const { notificarAsignacion, enlaceAsignacion } = require('../services/mitigacionService');
 const { CARPETA_FOTOS, TIPOS_FOTO, recibirFotos, borrarArchivos, esImagenValida } = require('../utils/subidas');
 
@@ -76,33 +71,6 @@ router.get('/resumen', async (req, res) => {
       resumen[r.estado] = r.total;
     });
     res.json(resumen);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// GET /api/alertas/historial?sensor_id&estado&parametro&desde=YYYY-MM-DD&hasta=YYYY-MM-DD&pagina=1&por_pagina=25
-// Historial completo de alertas, paginado (Datos Históricos, solo administradores).
-router.get('/historial', authorize('administrador'), async (req, res) => {
-  const { condiciones, params } = construirFiltrosAlertas(req.query);
-  const where = condiciones.length ? `WHERE ${condiciones.join(' AND ')}` : '';
-  const pagina = Math.max(1, parseInt(req.query.pagina, 10) || 1);
-  const porPagina = Math.min(100, Math.max(1, parseInt(req.query.por_pagina, 10) || 25));
-
-  try {
-    const [[{ total }]] = await db.query(`SELECT COUNT(*) AS total FROM alertas a ${where}`, params);
-    const [alertas] = await db.query(
-      `SELECT a.id, a.sensor_id, a.parametro, a.valor, a.fecha_hora, a.estado, a.asignado_en, a.mitigado_en,
-              s.n_serie AS numero_serie, s.ubicacion, e.nombre AS equipo_nombre
-       FROM alertas a
-       JOIN sensores s ON s.id = a.sensor_id
-       LEFT JOIN equipos_mitigacion e ON e.id = a.equipo_id
-       ${where}
-       ORDER BY a.fecha_hora DESC
-       LIMIT ? OFFSET ?`,
-      [...params, porPagina, (pagina - 1) * porPagina]
-    );
-    res.json({ total, pagina, por_pagina: porPagina, alertas });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

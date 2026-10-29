@@ -7,24 +7,43 @@ const { construirFiltrosAlertas } = require('./alertasService');
 
 const nombreCompleto = (nombre, apellido) => (nombre ? `${nombre} ${apellido || ''}`.trim() : null);
 
-// Alertas filtradas con su equipo y quién las mitigó, de la más antigua a la
-// más reciente (orden de lectura de un reporte).
+// Alertas filtradas con los datos del sensor y su propietario, el equipo
+// asignado y quién las asignó o mitigó, de la más antigua a la más reciente
+// (orden de lectura de un reporte).
 async function listarAlertas(filtros) {
   const { condiciones, params } = construirFiltrosAlertas(filtros);
   const [rows] = await db.query(
-    `SELECT a.id, a.parametro, a.valor, a.fecha_hora, a.estado, a.asignado_en, a.mitigado_en,
-            a.observacion_mitigacion, s.n_serie, s.ubicacion, e.nombre AS equipo_nombre,
-            um.nombre AS mitigado_por_nombre, um.apellido AS mitigado_por_apellido
+    `SELECT a.id, a.parametro, a.valor, a.fecha_hora, a.estado, a.instrucciones, a.asignado_en, a.mitigado_en,
+            a.correo_enviado, a.whatsapp_enviado, a.observacion_mitigacion,
+            s.n_serie, s.ubicacion, s.propietario_nombre, s.propietario_ci, s.propietario_telefono,
+            s.propietario_direccion, s.propietario_nro_casa, s.telefono_emergencia,
+            e.nombre AS equipo_nombre,
+            ua.nombre AS asignado_por_nombre, ua.apellido AS asignado_por_apellido,
+            um.nombre AS mitigado_por_nombre, um.apellido AS mitigado_por_apellido,
+            (SELECT COUNT(*) FROM fotos_mitigacion f WHERE f.alerta_id = a.id) AS fotos
      FROM alertas a
      JOIN sensores s ON s.id = a.sensor_id
      LEFT JOIN equipos_mitigacion e ON e.id = a.equipo_id
+     LEFT JOIN usuarios ua ON ua.id = a.asignado_por
      LEFT JOIN usuarios um ON um.id = a.mitigado_por
      ${condiciones.length ? `WHERE ${condiciones.join(' AND ')}` : ''}
      ORDER BY a.fecha_hora ASC
-     LIMIT 5000`,
+     LIMIT 20000`,
     params
   );
-  return rows.map((r) => ({ ...r, mitigado_por: nombreCompleto(r.mitigado_por_nombre, r.mitigado_por_apellido) }));
+  return rows.map((r) => ({
+    ...r,
+    asignado_por: nombreCompleto(r.asignado_por_nombre, r.asignado_por_apellido),
+    mitigado_por: nombreCompleto(r.mitigado_por_nombre, r.mitigado_por_apellido),
+  }));
+}
+
+// Horas desde que se generó cada alerta mitigada hasta su mitigación, en promedio.
+function horasPromedioMitigacion(alertas) {
+  const mitigadas = alertas.filter((a) => a.estado === 'mitigada' && a.mitigado_en);
+  return mitigadas.length
+    ? mitigadas.reduce((suma, a) => suma + (new Date(a.mitigado_en) - new Date(a.fecha_hora)) / 3600000, 0) / mitigadas.length
+    : null;
 }
 
 // Cuenta alertas por estado y por parámetro.
@@ -36,6 +55,44 @@ function resumirAlertas(alertas) {
     porParametro[a.parametro] = (porParametro[a.parametro] || 0) + 1;
   }
   return { total: alertas.length, porEstado, porParametro };
+}
+
+// Reporte general de alertas: todas las alertas del sistema en el periodo,
+// con los datos del sensor y del propietario, y un resumen por sensor.
+async function datosReporteAlertasGeneral({ desde, hasta }) {
+  const alertas = await listarAlertas({ desde, hasta });
+  const porSensor = {};
+  for (const a of alertas) {
+    const fila = porSensor[a.n_serie] || { n_serie: a.n_serie, ubicacion: a.ubicacion, propietario: a.propietario_nombre, total: 0, mitigadas: 0 };
+    fila.total += 1;
+    if (a.estado === 'mitigada') fila.mitigadas += 1;
+    porSensor[a.n_serie] = fila;
+  }
+  return {
+    desde,
+    hasta,
+    alertas,
+    resumen: { ...resumirAlertas(alertas), horasMitigacion: horasPromedioMitigacion(alertas) },
+    porSensor: Object.values(porSensor).sort((x, y) => y.total - x.total),
+  };
+}
+
+const MAX_LECTURAS_EXCEL = 100000;
+
+// Todas las lecturas del periodo (para la hoja "Lecturas" del reporte
+// general en Excel), con un tope para no generar archivos inmanejables.
+async function listarLecturas({ desde, hasta }) {
+  const rango = rangoFechas('l.fecha_hora', desde, hasta);
+  const [rows] = await db.query(
+    `SELECT l.fecha_hora, s.n_serie, l.valor_temperatura, l.valor_ph, l.valor_turbidez, l.valor_conductividad
+     FROM lecturas l
+     JOIN sensores s ON s.id = l.sensor_id
+     WHERE 1 = 1${rango.sql}
+     ORDER BY l.fecha_hora ASC
+     LIMIT ?`,
+    [...rango.params, MAX_LECTURAS_EXCEL + 1]
+  );
+  return { lecturas: rows.slice(0, MAX_LECTURAS_EXCEL), recortadas: rows.length > MAX_LECTURAS_EXCEL };
 }
 
 // Reporte de alertas de un sensor (botón "Reporte de alertas" junto a
@@ -72,7 +129,9 @@ async function datosReporteGeneral({ desde, hasta }) {
   const { ph, turbidez, conductividad } = UMBRALES;
 
   const [sensores] = await db.query(
-    `SELECT s.id, s.n_serie, s.ubicacion, s.propietario_nombre,
+    `SELECT s.id, s.n_serie, s.ubicacion, s.descripcion, s.latitud, s.longitud,
+            s.propietario_nombre, s.propietario_ci, s.propietario_telefono, s.propietario_direccion,
+            s.propietario_nro_casa, s.telefono_emergencia,
             COUNT(l.id) AS lecturas,
             AVG(l.valor_temperatura) AS temp_prom,
             AVG(l.valor_ph) AS ph_prom, MIN(l.valor_ph) AS ph_min, MAX(l.valor_ph) AS ph_max,
@@ -107,11 +166,7 @@ async function datosReporteGeneral({ desde, hasta }) {
     alertasPorSensor[a.n_serie] = (alertasPorSensor[a.n_serie] || 0) + 1;
   }
 
-  // Tiempo desde que se generó la alerta hasta que se mitigó, en horas.
-  const mitigadas = alertas.filter((a) => a.estado === 'mitigada' && a.mitigado_en);
-  const horasMitigacion = mitigadas.length
-    ? mitigadas.reduce((suma, a) => suma + (new Date(a.mitigado_en) - new Date(a.fecha_hora)) / 3600000, 0) / mitigadas.length
-    : null;
+  const horasMitigacion = horasPromedioMitigacion(alertas);
 
   const totalLecturas = sensores.reduce((suma, s) => suma + Number(s.lecturas), 0);
   const totalFueraDeRango = sensores.reduce((suma, s) => suma + Number(s.fuera_de_rango || 0), 0);
@@ -137,4 +192,4 @@ async function datosReporteGeneral({ desde, hasta }) {
   };
 }
 
-module.exports = { datosReporteAlertas, datosReporteGeneral };
+module.exports = { datosReporteAlertas, datosReporteGeneral, datosReporteAlertasGeneral, listarLecturas };

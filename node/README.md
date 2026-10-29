@@ -150,14 +150,16 @@ celular registrado en Usuarios.
   equipo asignado e historial de alertas pendientes y mitigadas del sensor
 - `PUT /api/alertas/:id/asignar` — asigna la alerta a un equipo y avisa por
   correo a su jefe (administrador y empleado)
-- `GET /api/alertas/historial?sensor_id&estado&parametro&desde&hasta&pagina&por_pagina`
-  — historial completo paginado (solo administrador)
 - `PUT /api/alertas/:id/mitigada` (multipart) — el jefe del equipo asignado
   registra qué se hizo (`observacion`) y sube las 3 fotos obligatorias
   (`equipo`, `casa`, `trabajo`; JPG, PNG o WebP de hasta 5 MB)
 - `GET /api/alertas/:id/fotos/:tipo` — descarga una foto de evidencia
-- `GET /api/reportes/alertas?sensor_id=N&desde&hasta&formato=pdf|xlsx` y
-  `GET /api/reportes/general?desde&hasta&formato=pdf|xlsx` (solo administrador)
+- `GET /api/lecturas/:sensorId/serie?desde&hasta` — serie para los gráficos de
+  Datos Históricos (agrupada en hasta 300 puntos) y sus estadísticas
+- Reportes en PDF o Excel (solo administrador), con `desde`, `hasta` y
+  `formato=pdf|xlsx`: `GET /api/reportes/alertas?sensor_id=N` (alertas de un
+  sensor), `GET /api/reportes/alertas-general` (todas las alertas con datos
+  del sensor y del propietario) y `GET /api/reportes/general` (todo el sistema)
 - `GET /api/equipos` (administrador y empleado),
   `POST/PUT/DELETE /api/equipos` (solo administrador)
 

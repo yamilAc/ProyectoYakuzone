@@ -1,7 +1,8 @@
 // Reporte general del sistema (Datos Históricos, botón "Reporte general"), en
-// PDF o Excel: indicadores clave, calidad del agua por sensor, alertas y
-// desempeño de los equipos de mitigación. Los datos los arma
-// services/reportesService.js -> datosReporteGeneral().
+// PDF o Excel: indicadores clave, sensores y sus propietarios, calidad del
+// agua por sensor, alertas, desempeño de los equipos de mitigación y (en
+// Excel) todas las lecturas del periodo. Los datos los arma
+// services/reportesService.js -> datosReporteGeneral() y listarLecturas().
 const { ETIQUETAS, rangoTexto } = require('../utils/thresholds');
 const c = require('./comun');
 
@@ -9,6 +10,8 @@ const TITULO = 'Reporte general del sistema';
 // En el PDF el detalle de alertas se incluye solo si es razonable imprimirlo;
 // el Excel siempre lleva el detalle completo.
 const MAX_ALERTAS_PDF = 300;
+
+const direccion = (s) => [s.propietario_direccion, s.propietario_nro_casa && `Casa Nº ${s.propietario_nro_casa}`].filter(Boolean).join(' · ');
 
 const horas = (minutos) => (minutos === null || minutos === undefined ? null : Number(minutos) / 60);
 
@@ -41,6 +44,29 @@ function pdf(res, datos, { nombreArchivo, generadoPor }) {
     color: '#607D8B',
     tamano: 8,
   });
+
+  c.seccion(doc, 'Sensores y propietarios');
+  c.tabla(
+    doc,
+    [
+      { titulo: 'Sensor', peso: 0.8 },
+      { titulo: 'Ubicación', peso: 1.6 },
+      { titulo: 'Propietario', peso: 1.4 },
+      { titulo: 'CI', peso: 0.9 },
+      { titulo: 'Teléfono', peso: 0.9 },
+      { titulo: 'Dirección', peso: 1.6 },
+      { titulo: 'Emergencia', peso: 0.9 },
+    ],
+    sensores.map((s) => [
+      s.n_serie,
+      s.ubicacion || '—',
+      s.propietario_nombre || 'Sin registrar',
+      s.propietario_ci || '—',
+      s.propietario_telefono || '—',
+      direccion(s) || '—',
+      s.telefono_emergencia || '—',
+    ])
+  );
 
   c.seccion(doc, 'Calidad del agua por sensor');
   c.tabla(
@@ -157,7 +183,14 @@ async function excel(res, datos, { nombreArchivo, generadoPor }) {
     columnas: [
       { titulo: 'Sensor', clave: 'n_serie', ancho: 12 },
       { titulo: 'Ubicación', clave: 'ubicacion', ancho: 32 },
+      { titulo: 'Descripción', clave: 'descripcion', ancho: 26 },
+      { titulo: 'Latitud', clave: 'latitud', ancho: 12 },
+      { titulo: 'Longitud', clave: 'longitud', ancho: 12 },
       { titulo: 'Propietario', clave: 'propietario_nombre', ancho: 24 },
+      { titulo: 'CI', clave: 'propietario_ci', ancho: 13 },
+      { titulo: 'Teléfono', clave: 'propietario_telefono', ancho: 13 },
+      { titulo: 'Dirección', clave: 'direccion', ancho: 30 },
+      { titulo: 'Teléfono de emergencia', clave: 'telefono_emergencia', ancho: 14 },
       { titulo: 'Lecturas', clave: 'lecturas', ancho: 10 },
       { titulo: 'pH prom.', clave: 'ph_prom', ancho: 10, formato: '0.00' },
       { titulo: 'pH mín.', clave: 'ph_min', ancho: 10, formato: '0.00' },
@@ -174,6 +207,9 @@ async function excel(res, datos, { nombreArchivo, generadoPor }) {
     ],
     filas: sensores.map((s) => ({
       ...s,
+      latitud: numero(s.latitud, 6),
+      longitud: numero(s.longitud, 6),
+      direccion: direccion(s) || null,
       lecturas: Number(s.lecturas),
       ph_prom: numero(s.ph_prom),
       ph_min: numero(s.ph_min),
@@ -218,6 +254,7 @@ async function excel(res, datos, { nombreArchivo, generadoPor }) {
       { titulo: 'Fecha y hora', clave: 'fecha', ancho: 18, formato: 'dd/mm/yyyy hh:mm' },
       { titulo: 'Sensor', clave: 'n_serie', ancho: 11 },
       { titulo: 'Ubicación', clave: 'ubicacion', ancho: 30 },
+      { titulo: 'Propietario', clave: 'propietario', ancho: 24 },
       { titulo: 'Parámetro', clave: 'parametro', ancho: 22 },
       { titulo: 'Valor', clave: 'valor', ancho: 10, formato: '0.00' },
       { titulo: 'Estado', clave: 'estado', ancho: 13 },
@@ -231,6 +268,7 @@ async function excel(res, datos, { nombreArchivo, generadoPor }) {
       fecha: c.fechaExcel(a.fecha_hora),
       n_serie: a.n_serie,
       ubicacion: a.ubicacion,
+      propietario: a.propietario_nombre,
       parametro: ETIQUETAS[a.parametro] || a.parametro,
       valor: a.valor === null ? null : Number(a.valor),
       estado: c.ESTADOS[a.estado],
@@ -240,6 +278,30 @@ async function excel(res, datos, { nombreArchivo, generadoPor }) {
       observacion: a.observacion_mitigacion,
     })),
   });
+
+  if (datos.lecturasDetalle) {
+    const { lecturas, recortadas } = datos.lecturasDetalle;
+    c.agregarHojaTabla(libro, 'Lecturas', {
+      titulo: 'Lecturas de los sensores',
+      subtitulo: recortadas ? `${subtitulo} · Se muestran las primeras ${lecturas.length} lecturas del periodo` : subtitulo,
+      columnas: [
+        { titulo: 'Fecha y hora', clave: 'fecha', ancho: 18, formato: 'dd/mm/yyyy hh:mm:ss' },
+        { titulo: 'Sensor', clave: 'n_serie', ancho: 10 },
+        { titulo: 'Temperatura (°C)', clave: 'valor_temperatura', ancho: 13, formato: '0.00' },
+        { titulo: 'pH', clave: 'valor_ph', ancho: 9, formato: '0.00' },
+        { titulo: 'Turbidez (NTU)', clave: 'valor_turbidez', ancho: 12, formato: '0.00' },
+        { titulo: 'Conductividad (µS/cm)', clave: 'valor_conductividad', ancho: 14, formato: '0.00' },
+      ],
+      filas: lecturas.map((l) => ({
+        fecha: c.fechaExcel(l.fecha_hora),
+        n_serie: l.n_serie,
+        valor_temperatura: numero(l.valor_temperatura),
+        valor_ph: numero(l.valor_ph),
+        valor_turbidez: numero(l.valor_turbidez),
+        valor_conductividad: numero(l.valor_conductividad),
+      })),
+    });
+  }
 
   await c.enviarExcel(res, libro, nombreArchivo);
 }
