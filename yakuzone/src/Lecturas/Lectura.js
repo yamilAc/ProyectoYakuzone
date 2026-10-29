@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import axios from '../axios/axiosConfig';
 import { Container, Typography, Box, CircularProgress, Paper, Chip, Stack, Grid, FormControl, InputLabel, Select, MenuItem } from '@mui/material';
 import ShowChartIcon from '@mui/icons-material/ShowChart';
@@ -56,6 +57,8 @@ const ParametroCard = ({ index, config, lecturas }) => {
 };
 
 const Lectura = () => {
+  // Sensor que llega elegido desde la página de Sensores (al tocar su tarjeta).
+  const sensorElegido = useLocation().state?.sensorId;
   const [sensores, setSensores] = useState([]);
   const [sensorId, setSensorId] = useState('');
   const [lecturas, setLecturas] = useState([]);
@@ -67,14 +70,15 @@ const Lectura = () => {
       .get('/sensores')
       .then((res) => {
         setSensores(res.data);
-        setSensorId((actual) => actual || (res.data[0] && res.data[0].id) || '');
+        const inicial = res.data.find((s) => s.id === sensorElegido) || res.data[0];
+        setSensorId((actual) => actual || (inicial && inicial.id) || '');
         if (res.data.length === 0) setLoading(false);
       })
       .catch((error) => {
         console.error('Error al obtener los sensores:', error);
         setLoading(false);
       });
-  }, []);
+  }, [sensorElegido]);
 
   // Con varios sensores, las gráficas muestran la serie de tiempo de UN
   // sensor a la vez (mezclar sensores en la misma línea no tendría sentido).

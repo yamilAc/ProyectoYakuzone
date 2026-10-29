@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Container,
   Box,
@@ -35,6 +36,7 @@ import PlaceIcon from '@mui/icons-material/Place';
 import CloseIcon from '@mui/icons-material/Close';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import WifiTetheringIcon from '@mui/icons-material/WifiTethering';
+import ShowChartIcon from '@mui/icons-material/ShowChart';
 import PersonIcon from '@mui/icons-material/Person';
 import axios from '../axios/axiosConfig';
 import PageHeader from '../components/PageHeader';
@@ -81,9 +83,11 @@ const SelectorDeUbicacion = ({ onSeleccionar }) => {
 };
 
 // El administrador da de alta, edita y elimina sensores; el empleado (que
-// llega desde el Dashboard) solo los consulta.
+// llega desde el Dashboard) solo los consulta. Al tocar una tarjeta se abren
+// las Lecturas de ese sensor.
 const Sensores = () => {
   const esAdmin = getUserRole() === 'administrador';
+  const navigate = useNavigate();
   const [sensores, setSensores] = useState([]);
   const [ultimasPorSensor, setUltimasPorSensor] = useState({});
   const [cargando, setCargando] = useState(true);
@@ -301,7 +305,9 @@ const Sensores = () => {
                       exit={{ opacity: 0, scale: 0.92 }}
                       transition={{ duration: 0.35, delay: i * 0.04 }}
                       whileHover={{ y: -4, boxShadow: '0 12px 28px rgba(11,94,119,0.18)' }}
+                      onClick={() => navigate('/Lectura', { state: { sensorId: sensor.id } })}
                       sx={{
+                        cursor: 'pointer',
                         borderRadius: 3,
                         borderTop: `4px solid ${colorEstado}`,
                         height: '100%',
@@ -352,18 +358,38 @@ const Sensores = () => {
                         )}
 
                         <Box sx={{ flex: 1 }} />
-                        {esAdmin && <Divider sx={{ my: 1 }} />}
-                        <Box sx={{ display: esAdmin ? 'flex' : 'none', justifyContent: 'flex-end', gap: 1 }}>
-                          <Tooltip title="Editar sensor">
-                            <IconButton size="small" onClick={() => abrirEditar(sensor)}>
-                              <EditIcon fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
-                          <Tooltip title="Eliminar sensor">
-                            <IconButton size="small" color="error" onClick={() => abrirConfirmarEliminar(sensor)}>
-                              <DeleteIcon fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
+                        <Divider sx={{ my: 1 }} />
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1 }}>
+                          <Typography variant="caption" color="primary" fontWeight={600} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                            <ShowChartIcon sx={{ fontSize: 16 }} /> Ver lecturas
+                          </Typography>
+                          {esAdmin && (
+                            <Box sx={{ display: 'flex', gap: 1 }}>
+                              <Tooltip title="Editar sensor">
+                                <IconButton
+                                  size="small"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    abrirEditar(sensor);
+                                  }}
+                                >
+                                  <EditIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                              <Tooltip title="Eliminar sensor">
+                                <IconButton
+                                  size="small"
+                                  color="error"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    abrirConfirmarEliminar(sensor);
+                                  }}
+                                >
+                                  <DeleteIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            </Box>
+                          )}
                         </Box>
                       </CardContent>
                     </Card>
