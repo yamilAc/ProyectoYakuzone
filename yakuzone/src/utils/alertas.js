@@ -27,3 +27,9 @@ export const textoValor = (parametro, valor) =>
   valor === null || valor === undefined ? 'Sin dato' : `${Number(valor)}${UNIDADES_PARAMETRO[parametro] || ''}`;
 
 export const formatearFecha = (fecha) => (fecha ? new Date(fecha).toLocaleString() : '—');
+
+// Evento del navegador para avisar que una alerta cambió (se asignó, se
+// mitigó o llegó una nueva), así el contador del menú y la lista de
+// Notificaciones se actualizan al instante, sin esperar al siguiente ciclo.
+export const EVENTO_ALERTAS_CAMBIARON = 'yakuzone:alertas-cambiaron';
+export const avisarCambioAlertas = () => window.dispatchEvent(new Event(EVENTO_ALERTAS_CAMBIARON));

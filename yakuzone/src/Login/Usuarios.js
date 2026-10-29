@@ -38,6 +38,7 @@ import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 import BadgeIcon from '@mui/icons-material/Badge';
 import HealingIcon from '@mui/icons-material/Healing';
 import EmailIcon from '@mui/icons-material/Email';
+import PhoneIcon from '@mui/icons-material/Phone';
 import axios from '../axios/axiosConfig';
 import PageHeader from '../components/PageHeader';
 import { getUserId } from '../axios/auth';
@@ -46,6 +47,7 @@ const FORM_INICIAL = {
   nombre: '',
   apellido: '',
   ci: '',
+  telefono: '',
   email: '',
   contrasenia: '',
   rol: 'empleado',
@@ -116,7 +118,7 @@ const Usuarios = () => {
 
   const abrirEditar = (usuario) => {
     setEditando(usuario);
-    setFormData({ ...usuario, contrasenia: '' });
+    setFormData({ ...usuario, telefono: usuario.telefono || '', contrasenia: '' });
     setDialogoAbierto(true);
   };
 
@@ -311,6 +313,15 @@ const Usuarios = () => {
                         >
                           <EmailIcon fontSize="inherit" /> {usuario.email}
                         </Typography>
+                        {(usuario.telefono || usuario.rol === 'equipo_mitigacion') && (
+                          <Typography
+                            variant="body2"
+                            color={usuario.telefono ? 'text.secondary' : 'warning.main'}
+                            sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}
+                          >
+                            <PhoneIcon fontSize="inherit" /> {usuario.telefono || 'Falta el celular (para avisos por WhatsApp)'}
+                          </Typography>
+                        )}
 
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
                           <Chip
@@ -377,6 +388,22 @@ const Usuarios = () => {
               </Grid>
               <Grid item xs={12} sm={6}>
                 <TextField label="Email" name="email" value={formData.email} onChange={handleInputChange} type="email" fullWidth required />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  label="Celular"
+                  name="telefono"
+                  value={formData.telefono}
+                  onChange={handleInputChange}
+                  fullWidth
+                  required={formData.rol === 'equipo_mitigacion'}
+                  placeholder="71234567"
+                  helperText={
+                    formData.rol === 'equipo_mitigacion'
+                      ? 'Obligatorio: aquí le llegan por WhatsApp las alertas de su equipo'
+                      : 'Opcional'
+                  }
+                />
               </Grid>
               <Grid item xs={12} sm={6}>
                 <TextField

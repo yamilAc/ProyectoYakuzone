@@ -5,7 +5,7 @@ import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive';
 import CloseIcon from '@mui/icons-material/Close';
 import axios from '../axios/axiosConfig';
 import DetalleAlerta from '../Notificaciones/DetalleAlerta';
-import { textoParametro, textoValor } from '../utils/alertas';
+import { textoParametro, textoValor, avisarCambioAlertas } from '../utils/alertas';
 
 const INTERVALO_MS = 10000;
 const DURACION_AVISO_MS = 20000;
@@ -40,6 +40,7 @@ const AvisosAlertas = ({ userRole }) => {
         nuevas.forEach((a) => conocidas.current.add(a.id));
         if (nuevas.length > 0) {
           setAvisos((actuales) => [...nuevas.map((a) => ({ ...a, recibido: Date.now() })), ...actuales].slice(0, MAX_AVISOS));
+          avisarCambioAlertas(); // el contador del menú se actualiza al mismo tiempo que el aviso
         }
       } catch {
         // Sin conexión o sesión vencida: se vuelve a intentar en el próximo ciclo.

@@ -17,7 +17,7 @@ const MAX_MIEMBROS = 20;
 async function listarEquipos() {
   const [equipos] = await db.query(
     `SELECT e.id, e.nombre, e.descripcion, e.jefe_id, e.creado_en,
-            u.nombre AS jefe_nombre, u.apellido AS jefe_apellido, u.email AS jefe_email,
+            u.nombre AS jefe_nombre, u.apellido AS jefe_apellido, u.email AS jefe_email, u.telefono AS jefe_telefono,
             (SELECT COUNT(*) FROM alertas a WHERE a.equipo_id = e.id AND a.estado = 'asignada') AS alertas_activas
      FROM equipos_mitigacion e
      LEFT JOIN usuarios u ON u.id = e.jefe_id

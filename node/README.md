@@ -37,6 +37,7 @@ Frontend React  <---- API REST (/api/...) con JWT ----  Express  <----------+
    ```
    mysql -u root -p yakuDB < migration_notificaciones.sql
    mysql -u root -p yakuDB < migration_fotos_mitigacion.sql
+   mysql -u root -p yakuDB < migration_whatsapp.sql
    ```
 
    Las fotos de evidencia que suben los jefes de equipo se guardan en
@@ -81,6 +82,55 @@ Frontend React  <---- API REST (/api/...) con JWT ----  Express  <----------+
 ## Variables de entorno (`.env`)
 
 Ver `.env.example`. `JWT_SECRET` ya viene generado con un valor aleatorio.
+
+## Avisos por correo y WhatsApp
+
+Cuando un administrador o empleado asigna una alerta a un equipo, el sistema
+avisa al jefe del equipo por correo y por WhatsApp (además de mostrársela en
+Notificaciones). Si alguno de los dos no está configurado, la asignación igual
+se guarda y en el detalle de la alerta queda el botón "Enviar por WhatsApp",
+que abre WhatsApp con el mensaje ya escrito. El jefe necesita tener su
+celular registrado en Usuarios.
+
+### Correo (por ejemplo, con Gmail)
+
+1. En la cuenta de Gmail que enviará los avisos, activa la verificación en
+   dos pasos.
+2. Crea una contraseña de aplicación en https://myaccount.google.com/apppasswords
+   (son 16 letras; no es la contraseña normal de la cuenta).
+3. Completa en `.env`:
+   ```
+   SMTP_HOST=smtp.gmail.com
+   SMTP_PORT=587
+   SMTP_SECURE=false
+   SMTP_USER=la-cuenta@gmail.com
+   SMTP_PASS=la-contraseña-de-aplicación
+   SMTP_FROM=Yakuzone <la-cuenta@gmail.com>
+   ```
+4. Reinicia el servidor.
+
+### WhatsApp (WhatsApp Cloud API de Meta)
+
+1. En https://developers.facebook.com crea una app de tipo Business y
+   agrégale el producto WhatsApp.
+2. En la configuración de la API de WhatsApp copia el identificador del
+   número de teléfono (`WHATSAPP_PHONE_NUMBER_ID`) y genera un token de
+   acceso (`WHATSAPP_TOKEN`). El token temporal dura 24 horas; para uno
+   permanente, crea un usuario del sistema en la configuración del negocio
+   de Meta con el permiso `whatsapp_business_messaging`.
+3. Con el número de prueba que da Meta solo se puede escribir a números
+   verificados (hasta 5): agrega ahí el celular del jefe. Para uso real hay
+   que registrar un número propio que no esté usando la app de WhatsApp.
+4. En WhatsApp Manager crea una plantilla de mensaje con nombre
+   `alerta_asignada`, categoría Utilidad, idioma Español (`es`) y este cuerpo
+   (el orden de las variables importa):
+   ```
+   Yakuzone - Alerta asignada al equipo {{1}}. Sensor {{2}}: {{3}} = {{4}} (rango aceptable NB 512: {{5}}). Dirección: {{6}}. Propietario: {{7}}, teléfono {{8}}. Ingresa a la plataforma para ver el detalle y registrar la mitigación.
+   ```
+   Espera a que Meta la apruebe (de minutos a algunas horas).
+5. Completa en `.env` `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID` y, si
+   usaste otro nombre o idioma de plantilla, `WHATSAPP_TEMPLATE` y
+   `WHATSAPP_TEMPLATE_LANG`. Reinicia el servidor.
 
 ## Rutas de la API (todas bajo `/api`)
 

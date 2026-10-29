@@ -23,7 +23,7 @@ async function obtenerDetalleAlerta(id) {
             s.propietario_nro_casa, s.telefono_emergencia,
             m.sugerencia,
             e.nombre AS equipo_nombre, e.jefe_id,
-            uj.nombre AS jefe_nombre, uj.apellido AS jefe_apellido, uj.email AS jefe_email,
+            uj.nombre AS jefe_nombre, uj.apellido AS jefe_apellido, uj.email AS jefe_email, uj.telefono AS jefe_telefono,
             ua.nombre AS asignado_por_nombre, ua.apellido AS asignado_por_apellido,
             um.nombre AS mitigado_por_nombre, um.apellido AS mitigado_por_apellido
      FROM alertas a
@@ -63,6 +63,7 @@ async function obtenerDetalleAlerta(id) {
       asignado_por: nombreCompleto(r.asignado_por_nombre, r.asignado_por_apellido),
       asignado_en: r.asignado_en,
       correo_enviado: r.correo_enviado,
+      whatsapp_enviado: r.whatsapp_enviado,
       mitigado_por: nombreCompleto(r.mitigado_por_nombre, r.mitigado_por_apellido),
       mitigado_en: r.mitigado_en,
       observacion_mitigacion: r.observacion_mitigacion,
@@ -94,6 +95,7 @@ async function obtenerDetalleAlerta(id) {
           nombre: r.equipo_nombre,
           jefe: nombreCompleto(r.jefe_nombre, r.jefe_apellido),
           jefe_email: r.jefe_email,
+          jefe_telefono: r.jefe_telefono,
           miembros,
         }
       : null,

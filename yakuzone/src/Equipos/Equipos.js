@@ -250,6 +250,11 @@ const Equipos = () => {
                           <Typography variant="caption" color="text.secondary" noWrap display="block">
                             {equipo.jefe_email ? `Jefe · ${equipo.jefe_email}` : 'Edita el equipo para elegir un jefe'}
                           </Typography>
+                          {equipo.jefe_id && (
+                            <Typography variant="caption" color={equipo.jefe_telefono ? 'text.secondary' : 'warning.main'} noWrap display="block">
+                              {equipo.jefe_telefono ? `WhatsApp · ${equipo.jefe_telefono}` : 'Sin celular: regístralo en Usuarios para avisos por WhatsApp'}
+                            </Typography>
+                          )}
                         </Box>
                       </Stack>
 

@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Box, Drawer, List, ListItemButton, ListItemIcon, ListItemText, Avatar, Typography, Divider, IconButton } from '@mui/material';
+import React, { useEffect, useState } from 'react';
+import { Box, Drawer, List, ListItemButton, ListItemIcon, ListItemText, Avatar, Typography, Divider, IconButton, Badge } from '@mui/material';
 import { Link, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import MenuIcon from '@mui/icons-material/Menu';
@@ -14,6 +14,8 @@ import SensorsIcon from '@mui/icons-material/Sensors';
 import GroupsIcon from '@mui/icons-material/Groups';
 import LogoutIcon from '@mui/icons-material/Logout';
 import logo from './images/logoYakuzone.png';
+import axios from './axios/axiosConfig';
+import { EVENTO_ALERTAS_CAMBIARON } from './utils/alertas';
 
 export const SIDEBAR_WIDTH = 240;
 
@@ -43,6 +45,34 @@ const buildLinks = (userRole) => {
   // La mitigación se gestiona desde Notificaciones: ahí se asigna cada alerta
   // a un equipo y su jefe la marca como mitigada.
   return base;
+};
+
+// Alertas que esperan acción: sin asignar (administrador y empleado) o
+// asignadas a su equipo (jefe). Se muestran en un círculo junto a
+// Notificaciones por si no se vio el aviso emergente.
+const useAlertasPorAtender = (userRole) => {
+  const [cantidad, setCantidad] = useState(0);
+  useEffect(() => {
+    if (!userRole) return undefined;
+    let activo = true;
+    const actualizar = async () => {
+      try {
+        const res = await axios.get('/alertas/resumen');
+        if (activo) setCantidad(userRole === 'equipo_mitigacion' ? res.data.asignada : res.data.pendiente);
+      } catch {
+        // Sin conexión: se vuelve a intentar en el próximo ciclo.
+      }
+    };
+    actualizar();
+    const interval = setInterval(actualizar, 10000);
+    window.addEventListener(EVENTO_ALERTAS_CAMBIARON, actualizar);
+    return () => {
+      activo = false;
+      clearInterval(interval);
+      window.removeEventListener(EVENTO_ALERTAS_CAMBIARON, actualizar);
+    };
+  }, [userRole]);
+  return cantidad;
 };
 
 const SidebarContent = ({ links, pathname, onNavigate, onLogout }) => (
@@ -99,7 +129,14 @@ const SidebarContent = ({ links, pathname, onNavigate, onLogout }) => (
               )}
               <Box sx={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', width: '100%' }}>
                 <ListItemIcon sx={{ color: '#fff', minWidth: 40 }}>
-                  <link.icon fontSize="small" />
+                  <Badge
+                    badgeContent={link.badge}
+                    color="error"
+                    max={99}
+                    sx={{ '& .MuiBadge-badge': { fontWeight: 700, border: '2px solid #0E7C9B' } }}
+                  >
+                    <link.icon fontSize="small" />
+                  </Badge>
                 </ListItemIcon>
                 <ListItemText primary={link.label} primaryTypographyProps={{ fontWeight: active ? 700 : 500 }} />
               </Box>
@@ -124,7 +161,8 @@ const SidebarContent = ({ links, pathname, onNavigate, onLogout }) => (
 const Sidebar = ({ userRole, onLogout }) => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
-  const links = buildLinks(userRole);
+  const porAtender = useAlertasPorAtender(userRole);
+  const links = buildLinks(userRole).map((link) => (link.to === '/Alerta' ? { ...link, badge: porAtender } : link));
 
   return (
     <>

@@ -3,11 +3,12 @@
 // de rango, se consulta la API de Gemini para obtener una recomendación de
 // acción correctiva y se guarda como sugerencia de la alerta. Cuando un
 // administrador o empleado asigna la alerta a un equipo de mitigación (desde
-// Notificaciones), se avisa por correo solo al jefe de ese equipo.
+// Notificaciones), se avisa solo al jefe de ese equipo, por correo y por WhatsApp.
 const db = require('../db');
-const { ETIQUETAS, rangoTexto } = require('../utils/thresholds');
+const { ETIQUETAS, UMBRALES, rangoTexto } = require('../utils/thresholds');
 const { generarRecomendacion } = require('../utils/gemini');
 const { enviarCorreo, escaparHtml } = require('../utils/mailer');
+const { enviarPlantilla, enlaceWhatsapp } = require('../utils/whatsapp');
 const { obtenerDetalleAlerta } = require('./alertasService');
 
 // Texto de respaldo si la API de Gemini no está configurada o falla, para
@@ -41,18 +42,89 @@ async function generarSugerencia({ alertaId, sensorId, parametro, valor }) {
   return resultado.insertId;
 }
 
-// Avisa por correo al jefe del equipo al que se acaba de asignar la alerta,
-// con lo necesario para ir a atenderla: parámetro y valor, ubicación,
-// datos del propietario, instrucciones de quien asignó y la sugerencia de la
-// IA. Devuelve true si el correo salió (y lo deja registrado en la alerta).
+const valorConUnidad = (alerta) => `${Number(alerta.valor)}${(UMBRALES[alerta.parametro] || {}).unidad || ''}`;
+const direccionCompleta = (propietario) =>
+  propietario
+    ? [propietario.direccion, propietario.nro_casa && `Casa Nº ${propietario.nro_casa}`].filter(Boolean).join(' · ')
+    : null;
+
+// Mensaje de WhatsApp de una alerta asignada, para el enlace "click to chat"
+// (el envío automático usa la plantilla aprobada en Meta, ver avisarPorWhatsapp).
+function textoWhatsapp({ alerta, sensor, propietario, equipo }) {
+  return [
+    '*Yakuzone - Alerta asignada a tu equipo*',
+    `Equipo: ${equipo.nombre}`,
+    `Sensor: ${sensor.n_serie}${sensor.ubicacion ? ` (${sensor.ubicacion})` : ''}`,
+    `${ETIQUETAS[alerta.parametro] || alerta.parametro}: ${valorConUnidad(alerta)} (rango aceptable NB 512: ${alerta.rango_referencia})`,
+    propietario ? `Dirección: ${direccionCompleta(propietario)}` : 'El sensor no tiene datos del propietario registrados.',
+    propietario ? `Propietario: ${propietario.nombre} · Tel. ${propietario.telefono}` : null,
+    propietario && propietario.telefono_emergencia ? `Teléfono de emergencia: ${propietario.telefono_emergencia}` : null,
+    alerta.instrucciones ? `Instrucciones: ${alerta.instrucciones}` : null,
+    'Ingresa a Yakuzone > Notificaciones para ver el detalle y registrar la mitigación con sus 3 fotos.',
+  ]
+    .filter(Boolean)
+    .join('\n');
+}
+
+// Enlace que abre WhatsApp con el mensaje listo para el jefe del equipo, o
+// null si la alerta no está asignada o el jefe no tiene teléfono.
+function enlaceAsignacion(detalle) {
+  if (!detalle.equipo || !detalle.equipo.jefe_telefono) return null;
+  return enlaceWhatsapp(detalle.equipo.jefe_telefono, textoWhatsapp(detalle));
+}
+
+// Envío automático por la WhatsApp Cloud API. Los parámetros siguen el orden
+// de las variables de la plantilla "alerta_asignada" (ver README).
+function avisarPorWhatsapp({ alerta, sensor, propietario, equipo }) {
+  if (!equipo.jefe_telefono) {
+    console.warn(`[Mitigación] El jefe del equipo ${equipo.nombre} no tiene teléfono registrado; no se envía WhatsApp.`);
+    return Promise.resolve(false);
+  }
+  return enviarPlantilla({
+    telefono: equipo.jefe_telefono,
+    parametros: [
+      equipo.nombre,
+      sensor.n_serie,
+      ETIQUETAS[alerta.parametro] || alerta.parametro,
+      valorConUnidad(alerta),
+      alerta.rango_referencia,
+      direccionCompleta(propietario) || 'sin registrar',
+      propietario ? propietario.nombre : 'sin registrar',
+      propietario ? propietario.telefono : 'sin registrar',
+    ],
+  });
+}
+
+// Avisa al jefe del equipo al que se acaba de asignar la alerta, por correo
+// y por WhatsApp, con lo necesario para ir a atenderla: parámetro y valor,
+// ubicación, datos del propietario, instrucciones de quien asignó y la
+// sugerencia de la IA. Devuelve { correo, whatsapp } (true si cada aviso
+// salió) y lo deja registrado en la alerta.
 async function notificarAsignacion(alertaId) {
   const detalle = await obtenerDetalleAlerta(alertaId);
-  if (!detalle || !detalle.equipo || !detalle.equipo.jefe_email) {
-    console.warn(`[Mitigación] La alerta ${alertaId} no tiene un jefe de equipo con correo; no se envía aviso.`);
-    return false;
+  if (!detalle || !detalle.equipo) {
+    console.warn(`[Mitigación] La alerta ${alertaId} no está asignada a un equipo; no se envía aviso.`);
+    return { correo: false, whatsapp: false };
   }
 
+  const [correo, whatsapp] = await Promise.all([
+    avisarPorCorreo(detalle),
+    avisarPorWhatsapp(detalle).catch((err) => {
+      console.error('[Mitigación] Error al avisar por WhatsApp:', err.message);
+      return false;
+    }),
+  ]);
+  await db.query('UPDATE alertas SET correo_enviado = ?, whatsapp_enviado = ? WHERE id = ?', [correo ? 1 : 0, whatsapp ? 1 : 0, alertaId]);
+  return { correo, whatsapp };
+}
+
+// Correo HTML al jefe del equipo con todos los datos de la alerta.
+async function avisarPorCorreo(detalle) {
   const { alerta, sensor, propietario, equipo } = detalle;
+  if (!equipo.jefe_email) {
+    console.warn(`[Mitigación] El equipo ${equipo.nombre} no tiene un jefe con correo; no se envía correo.`);
+    return false;
+  }
   const etiquetaParametro = ETIQUETAS[alerta.parametro] || alerta.parametro;
   const fila = (titulo, valor) => (valor ? `<li><strong>${titulo}:</strong> ${escaparHtml(valor)}</li>` : '');
 
@@ -82,11 +154,7 @@ async function notificarAsignacion(alertaId) {
     <p style="color:#888;font-size:12px;">Ingresa a Yakuzone, sección Notificaciones, para ver el detalle y marcar la alerta como mitigada cuando tu equipo termine. La sugerencia de la IA es una orientación inicial automatizada y no reemplaza el criterio profesional de un especialista en tratamiento de agua.</p>
   `;
 
-  const enviado = await enviarCorreo({ to: equipo.jefe_email, subject: asunto, html });
-  if (enviado) {
-    await db.query('UPDATE alertas SET correo_enviado = 1 WHERE id = ?', [alertaId]);
-  }
-  return enviado;
+  return enviarCorreo({ to: equipo.jefe_email, subject: asunto, html });
 }
 
-module.exports = { generarSugerencia, notificarAsignacion };
+module.exports = { generarSugerencia, notificarAsignacion, enlaceAsignacion };
