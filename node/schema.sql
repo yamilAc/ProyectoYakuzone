@@ -1,7 +1,7 @@
 -- Yakuzone - Esquema de base de datos (MySQL)
 -- ADVERTENCIA: este script BORRA y vuelve a crear todas las tablas del
 -- sistema (usuarios, sensores, lecturas, equipos de mitigación, alertas,
--- sugerencias y fotos de mitigación). Úsalo en tu entorno de desarrollo/demo.
+-- sugerencias, informes y fotos de mitigación). Úsalo en tu entorno de desarrollo/demo.
 -- Si tu base ya tenía datos en esas tablas (u otras) que quieres conservar,
 -- avisa antes de correrlo y se prepara una migración no destructiva.
 
@@ -15,6 +15,7 @@ USE yakuDB;
 SET FOREIGN_KEY_CHECKS = 0;
 
 DROP TABLE IF EXISTS fotos_mitigacion;
+DROP TABLE IF EXISTS informes_mitigacion;
 DROP TABLE IF EXISTS sugerencias_mitigacion;
 DROP TABLE IF EXISTS alertas;
 DROP TABLE IF EXISTS miembros_equipo;
@@ -88,8 +89,10 @@ CREATE TABLE miembros_equipo (
 
 -- Registro de alertas generadas automáticamente cuando una lectura queda
 -- fuera de los rangos de la Norma Boliviana NB 512-04 (ver node/utils/thresholds.js).
--- Seguimiento: pendiente (sin equipo) -> asignada (a un equipo, con correo a
--- su jefe) -> mitigada (el jefe o un administrador registra lo que se hizo).
+-- Seguimiento: pendiente (sin asignar) -> asignada (a un equipo, con aviso a
+-- su jefe) -> en_revision (el jefe envió el informe de la visita) -> mitigada
+-- (un administrador o empleado aprobó el informe). Si el informe no se aprueba,
+-- la alerta se reasigna para una nueva visita y vuelve a "asignada".
 CREATE TABLE alertas (
   id INT AUTO_INCREMENT PRIMARY KEY,
   lectura_id INT,
@@ -100,7 +103,7 @@ CREATE TABLE alertas (
   descripcion VARCHAR(255),
   fecha_hora DATETIME NOT NULL,
   leida TINYINT(1) NOT NULL DEFAULT 0,
-  estado ENUM('pendiente','asignada','mitigada') NOT NULL DEFAULT 'pendiente',
+  estado ENUM('pendiente','asignada','en_revision','mitigada') NOT NULL DEFAULT 'pendiente',
   equipo_id INT,
   instrucciones VARCHAR(500),
   asignado_por INT,
@@ -137,18 +140,42 @@ CREATE TABLE sugerencias_mitigacion (
   FOREIGN KEY (sensor_id) REFERENCES sensores(id) ON DELETE CASCADE
 );
 
--- Fotos de evidencia que sube el jefe del equipo al marcar la alerta como
--- mitigada: el equipo en el lugar, la casa y el trabajo realizado. Los
--- archivos se guardan en node/uploads/mitigaciones/ y aquí solo su nombre.
+-- Informe de cada visita del equipo de mitigación: si la mitigación se
+-- realizó o no, qué se hizo, y la revisión del administrador o empleado.
+CREATE TABLE informes_mitigacion (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  alerta_id INT NOT NULL,
+  equipo_id INT,
+  resultado ENUM('realizada','no_realizada') NOT NULL,
+  observacion VARCHAR(500) NOT NULL,
+  enviado_por INT,
+  enviado_en DATETIME NOT NULL,
+  revision ENUM('pendiente','aprobado','rechazado') NOT NULL DEFAULT 'pendiente',
+  revisado_por INT,
+  revisado_en DATETIME,
+  comentario_revision VARCHAR(500),
+  FOREIGN KEY (alerta_id) REFERENCES alertas(id) ON DELETE CASCADE,
+  FOREIGN KEY (equipo_id) REFERENCES equipos_mitigacion(id) ON DELETE SET NULL,
+  FOREIGN KEY (enviado_por) REFERENCES usuarios(id) ON DELETE SET NULL,
+  FOREIGN KEY (revisado_por) REFERENCES usuarios(id) ON DELETE SET NULL,
+  INDEX idx_informes_alerta (alerta_id)
+);
+
+-- Fotos de evidencia de cada informe: el equipo en el lugar, la casa y el
+-- trabajo realizado. Los archivos se guardan en node/uploads/mitigaciones/ y
+-- aquí solo su nombre.
 CREATE TABLE fotos_mitigacion (
   id INT AUTO_INCREMENT PRIMARY KEY,
   alerta_id INT NOT NULL,
+  informe_id INT,
   tipo ENUM('equipo','casa','trabajo') NOT NULL,
   archivo VARCHAR(255) NOT NULL,
   subido_por INT,
   subido_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE KEY uq_foto_alerta_tipo (alerta_id, tipo),
+  UNIQUE KEY uq_foto_informe_tipo (informe_id, tipo),
+  INDEX idx_fotos_alerta (alerta_id),
   FOREIGN KEY (alerta_id) REFERENCES alertas(id) ON DELETE CASCADE,
+  FOREIGN KEY (informe_id) REFERENCES informes_mitigacion(id) ON DELETE CASCADE,
   FOREIGN KEY (subido_por) REFERENCES usuarios(id) ON DELETE SET NULL
 );
 

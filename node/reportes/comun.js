@@ -13,7 +13,7 @@ const COLOR = {
   zebra: '#F2F7F9',
 };
 
-const ESTADOS = { pendiente: 'Sin asignar', asignada: 'Asignada', mitigada: 'Mitigada' };
+const ESTADOS = { pendiente: 'Sin asignar', asignada: 'Asignada', en_revision: 'Pendiente de revisión', mitigada: 'Mitigada' };
 
 // ---------- Formato ----------
 

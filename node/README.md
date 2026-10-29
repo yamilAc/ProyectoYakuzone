@@ -38,6 +38,7 @@ Frontend React  <---- API REST (/api/...) con JWT ----  Express  <----------+
    mysql -u root -p yakuDB < migration_notificaciones.sql
    mysql -u root -p yakuDB < migration_fotos_mitigacion.sql
    mysql -u root -p yakuDB < migration_whatsapp.sql
+   mysql -u root -p yakuDB < migration_revision_informes.sql
    ```
 
    Las fotos de evidencia que suben los jefes de equipo se guardan en
@@ -143,17 +144,23 @@ celular registrado en Usuarios.
 - `GET /api/lecturas/ultimas` — última lectura de cada sensor (para colorear el mapa)
 - `GET /api/lecturas/:sensorId?fechaInicio=YYYY-MM-DD&fechaFin=YYYY-MM-DD`
 - `POST /api/lecturas` — inserción manual (pruebas sin MQTT)
-- `GET /api/alertas?estado=pendiente|asignada|mitigada&sensor_id=N` — el
-  jefe de un equipo de mitigación solo recibe las alertas de su equipo
+- `GET /api/alertas?estado=pendiente|asignada|en_revision|mitigada&sensor_id=N`
+  — el jefe de un equipo de mitigación solo recibe las alertas de su equipo
 - `GET /api/alertas/resumen` — cantidad de alertas por estado
 - `GET /api/alertas/:id` — detalle: sensor, propietario, sugerencia de la IA,
   equipo asignado e historial de alertas pendientes y mitigadas del sensor
-- `PUT /api/alertas/:id/asignar` — asigna la alerta a un equipo y avisa por
-  correo a su jefe (administrador y empleado)
-- `PUT /api/alertas/:id/mitigada` (multipart) — el jefe del equipo asignado
-  registra qué se hizo (`observacion`) y sube las 3 fotos obligatorias
-  (`equipo`, `casa`, `trabajo`; JPG, PNG o WebP de hasta 5 MB)
-- `GET /api/alertas/:id/fotos/:tipo` — descarga una foto de evidencia
+- `PUT /api/alertas/:id/asignar` — asigna la alerta a un equipo y avisa a su
+  jefe (administrador y empleado); si estaba en revisión, el informe queda
+  rechazado y la alerta vuelve a "asignada" para una nueva visita
+- `POST /api/alertas/:id/informes` (multipart) — el jefe del equipo asignado
+  envía el informe de la visita: `resultado` (`realizada` o `no_realizada`),
+  `observacion` y las fotos `equipo`, `casa` y `trabajo` (JPG, PNG o WebP de
+  hasta 5 MB; si no se realizó, la del trabajo es opcional). La alerta pasa a
+  "pendiente de revisión"
+- `PUT /api/alertas/:id/aprobar` — un administrador o empleado aprueba el
+  informe (solo si se realizó) y la alerta queda mitigada
+- `GET /api/alertas/:id/informes/:informeId/fotos/:tipo` — descarga una foto
+  de evidencia de un informe
 - `GET /api/lecturas/:sensorId/serie?desde&hasta` — serie para los gráficos de
   Datos Históricos (agrupada en hasta 300 puntos) y sus estadísticas
 - Reportes en PDF o Excel (solo administrador), con `desde`, `hasta` y

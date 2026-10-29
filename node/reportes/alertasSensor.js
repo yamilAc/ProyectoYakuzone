@@ -33,6 +33,7 @@ function pdf(res, datos, { nombreArchivo, generadoPor }) {
     { valor: resumen.total, etiqueta: 'Alertas en el periodo' },
     { valor: resumen.porEstado.pendiente, etiqueta: 'Sin asignar' },
     { valor: resumen.porEstado.asignada, etiqueta: 'Asignadas (en curso)' },
+    { valor: resumen.porEstado.en_revision, etiqueta: 'Pendientes de revisión' },
     { valor: resumen.porEstado.mitigada, etiqueta: 'Mitigadas' },
   ]);
   c.parrafo(doc, `Alertas por parámetro: ${textoPorParametro(resumen.porParametro)}.`);
@@ -84,6 +85,7 @@ async function excel(res, datos, { nombreArchivo, generadoPor }) {
       ['Alertas en el periodo', resumen.total],
       ['Sin asignar', resumen.porEstado.pendiente],
       ['Asignadas (en curso)', resumen.porEstado.asignada],
+      ['Pendientes de revisión', resumen.porEstado.en_revision],
       ['Mitigadas', resumen.porEstado.mitigada],
       ['Alertas por parámetro', textoPorParametro(resumen.porParametro)],
     ],
@@ -104,6 +106,7 @@ async function excel(res, datos, { nombreArchivo, generadoPor }) {
       { titulo: 'Mitigada el', clave: 'mitigado', ancho: 18, formato: 'dd/mm/yyyy hh:mm' },
       { titulo: 'Mitigada por', clave: 'mitigado_por', ancho: 22 },
       { titulo: 'Acciones realizadas', clave: 'observacion', ancho: 45 },
+      { titulo: 'Visitas del equipo', clave: 'visitas', ancho: 10 },
     ],
     filas: alertas.map((a) => ({
       id: a.id,
@@ -117,6 +120,7 @@ async function excel(res, datos, { nombreArchivo, generadoPor }) {
       mitigado: c.fechaExcel(a.mitigado_en),
       mitigado_por: a.mitigado_por,
       observacion: a.observacion_mitigacion,
+      visitas: Number(a.visitas),
     })),
   });
 

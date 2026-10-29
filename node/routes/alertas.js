@@ -9,7 +9,12 @@ const { CARPETA_FOTOS, TIPOS_FOTO, recibirFotos, borrarArchivos, esImagenValida 
 
 router.use(authenticate);
 
-const ESTADOS = ['pendiente', 'asignada', 'mitigada'];
+// Seguimiento de una alerta: pendiente (sin asignar) -> asignada ->
+// en_revision (el jefe del equipo envió el informe de la visita) -> mitigada
+// (un administrador o empleado aprobó el informe). Si el informe no se
+// aprueba, la alerta se reasigna para una nueva visita y vuelve a "asignada".
+const ESTADOS = ['pendiente', 'asignada', 'en_revision', 'mitigada'];
+const RESULTADOS = ['realizada', 'no_realizada'];
 
 // El jefe de un equipo de mitigación (rol equipo_mitigacion) solo ve las
 // alertas asignadas a los equipos que encabeza; administradores y empleados
@@ -17,8 +22,9 @@ const ESTADOS = ['pendiente', 'asignada', 'mitigada'];
 const FILTRO_JEFE = 'a.equipo_id IN (SELECT id FROM equipos_mitigacion WHERE jefe_id = ?)';
 const esJefe = (req) => req.user.rol === 'equipo_mitigacion';
 
-// GET /api/alertas?estado=pendiente|asignada|mitigada&sensor_id=N (ambos
-// opcionales) - alertas más recientes primero.
+// GET /api/alertas?estado=pendiente|asignada|en_revision|mitigada&sensor_id=N
+// (ambos opcionales) - alertas más recientes primero, con el último informe
+// de visita (para mostrar sus fotos en la lista).
 router.get('/', async (req, res) => {
   const { estado, sensor_id } = req.query;
   const condiciones = [];
@@ -41,10 +47,12 @@ router.get('/', async (req, res) => {
       `SELECT a.id, a.sensor_id, a.parametro, a.valor, a.descripcion, a.fecha_hora, a.estado,
               a.equipo_id, a.asignado_en, a.mitigado_en,
               s.n_serie AS numero_serie, s.ubicacion, s.propietario_nombre, e.nombre AS equipo_nombre,
-              (SELECT COUNT(*) FROM fotos_mitigacion f WHERE f.alerta_id = a.id) AS fotos
+              ui.id AS ultimo_informe_id, ui.resultado AS ultimo_resultado,
+              (SELECT COUNT(*) FROM fotos_mitigacion f WHERE f.informe_id = ui.id) AS fotos
        FROM alertas a
        JOIN sensores s ON s.id = a.sensor_id
        LEFT JOIN equipos_mitigacion e ON e.id = a.equipo_id
+       LEFT JOIN informes_mitigacion ui ON ui.id = (SELECT MAX(i.id) FROM informes_mitigacion i WHERE i.alerta_id = a.id)
        ${condiciones.length ? `WHERE ${condiciones.join(' AND ')}` : ''}
        ORDER BY a.fecha_hora DESC
        LIMIT 200`,
@@ -57,7 +65,7 @@ router.get('/', async (req, res) => {
 });
 
 // GET /api/alertas/resumen - cantidad de alertas por estado (para las
-// pestañas de Notificaciones y el contador del Dashboard).
+// pestañas de Notificaciones, el contador del menú y el del Dashboard).
 router.get('/resumen', async (req, res) => {
   try {
     const [rows] = await db.query(
@@ -66,7 +74,7 @@ router.get('/resumen', async (req, res) => {
        GROUP BY a.estado`,
       esJefe(req) ? [req.user.id] : []
     );
-    const resumen = { pendiente: 0, asignada: 0, mitigada: 0 };
+    const resumen = { pendiente: 0, asignada: 0, en_revision: 0, mitigada: 0 };
     rows.forEach((r) => {
       resumen[r.estado] = r.total;
     });
@@ -77,8 +85,8 @@ router.get('/resumen', async (req, res) => {
 });
 
 // GET /api/alertas/:id - detalle completo de una alerta: sensor, propietario,
-// sugerencia de mitigación, equipo asignado y el historial de alertas
-// pendientes y mitigadas del mismo sensor.
+// sugerencia de mitigación, equipo asignado, informes de las visitas y el
+// historial de alertas pendientes y mitigadas del mismo sensor.
 router.get('/:id', async (req, res) => {
   try {
     const detalle = await obtenerDetalleAlerta(req.params.id);
@@ -114,9 +122,11 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// PUT /api/alertas/:id/asignar - asigna (o reasigna) la alerta a un equipo de
-// mitigación y avisa por correo solo al jefe de ese equipo. Lo pueden hacer
-// administradores y empleados.
+// PUT /api/alertas/:id/asignar - asigna la alerta a un equipo de mitigación
+// y avisa solo al jefe de ese equipo. Si la alerta estaba en revisión, el
+// informe pendiente queda rechazado (con las instrucciones como motivo) y la
+// alerta vuelve a "asignada" para una nueva visita, del mismo equipo u otro.
+// Lo pueden hacer administradores y empleados.
 router.put('/:id/asignar', authorize('administrador', 'empleado'), async (req, res) => {
   const equipoId = Number(req.body.equipo_id);
   const instrucciones = String(req.body.instrucciones || '').trim();
@@ -136,18 +146,38 @@ router.put('/:id/asignar', authorize('administrador', 'empleado'), async (req, r
       return res.status(400).json({ error: 'El equipo no tiene jefe; asígnale uno en Equipos de mitigación' });
     }
 
-    const [resultado] = await db.query(
-      `UPDATE alertas
-       SET estado = 'asignada', equipo_id = ?, instrucciones = ?, asignado_por = ?, asignado_en = NOW(),
-           correo_enviado = 0, leida = 1
-       WHERE id = ? AND estado <> 'mitigada'`,
-      [equipoId, instrucciones || null, req.user.id, req.params.id]
-    );
-    if (resultado.affectedRows === 0) {
-      const [existe] = await db.query('SELECT id FROM alertas WHERE id = ?', [req.params.id]);
-      return existe.length === 0
-        ? res.status(404).json({ error: 'Alerta no encontrada' })
-        : res.status(400).json({ error: 'La alerta ya fue mitigada' });
+    const conexion = await db.getConnection();
+    try {
+      await conexion.beginTransaction();
+      const [alertas] = await conexion.query('SELECT estado FROM alertas WHERE id = ? FOR UPDATE', [req.params.id]);
+      if (alertas.length === 0) {
+        await conexion.rollback();
+        return res.status(404).json({ error: 'Alerta no encontrada' });
+      }
+      if (alertas[0].estado === 'mitigada') {
+        await conexion.rollback();
+        return res.status(400).json({ error: 'La alerta ya fue mitigada' });
+      }
+      if (alertas[0].estado === 'en_revision') {
+        await conexion.query(
+          `UPDATE informes_mitigacion SET revision = 'rechazado', revisado_por = ?, revisado_en = NOW(), comentario_revision = ?
+           WHERE alerta_id = ? AND revision = 'pendiente'`,
+          [req.user.id, instrucciones || null, req.params.id]
+        );
+      }
+      await conexion.query(
+        `UPDATE alertas
+         SET estado = 'asignada', equipo_id = ?, instrucciones = ?, asignado_por = ?, asignado_en = NOW(),
+             correo_enviado = 0, whatsapp_enviado = 0, leida = 1
+         WHERE id = ?`,
+        [equipoId, instrucciones || null, req.user.id, req.params.id]
+      );
+      await conexion.commit();
+    } catch (err) {
+      await conexion.rollback();
+      throw err;
+    } finally {
+      conexion.release();
     }
 
     // La asignación ya quedó guardada: si el correo o el WhatsApp fallan
@@ -168,41 +198,54 @@ router.put('/:id/asignar', authorize('administrador', 'empleado'), async (req, r
   }
 });
 
-// Antes de recibir archivos se comprueba que quien cierra la alerta es el
-// jefe del equipo asignado y que la alerta sigue asignada.
-async function verificarPuedeMitigar(req, res, next) {
+// Antes de recibir archivos se comprueba que quien envía el informe es el
+// jefe del equipo asignado y que la alerta sigue asignada (esperando visita).
+async function verificarPuedeInformar(req, res, next) {
   try {
     const [alertas] = await db.query('SELECT estado, equipo_id FROM alertas WHERE id = ?', [req.params.id]);
     if (alertas.length === 0) {
       return res.status(404).json({ error: 'Alerta no encontrada' });
     }
-    if (alertas[0].estado === 'mitigada') {
-      return res.status(400).json({ error: 'La alerta ya fue marcada como mitigada' });
-    }
     const equiposPropios = await equiposDelJefe(req.user.id);
-    if (alertas[0].estado !== 'asignada' || !equiposPropios.includes(alertas[0].equipo_id)) {
+    if (!equiposPropios.includes(alertas[0].equipo_id)) {
       return res.status(403).json({ error: 'Esta alerta no está asignada a tu equipo' });
     }
+    if (alertas[0].estado !== 'asignada') {
+      return res.status(400).json({
+        error: alertas[0].estado === 'en_revision' ? 'Ya enviaste el informe de esta alerta; está en revisión' : 'La alerta ya fue mitigada',
+      });
+    }
+    req.equipoDeLaAlerta = alertas[0].equipo_id;
     next();
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 }
 
-// PUT /api/alertas/:id/mitigada (multipart/form-data) - el jefe del equipo
-// asignado registra qué se hizo (campo "observacion") y sube las 3 fotos de
-// evidencia obligatorias: "equipo", "casa" y "trabajo".
-router.put('/:id/mitigada', authorize('equipo_mitigacion'), verificarPuedeMitigar, recibirFotos, async (req, res) => {
+// POST /api/alertas/:id/informes (multipart/form-data) - el jefe del equipo
+// asignado envía el informe de la visita: "resultado" (realizada o
+// no_realizada), "observacion" y las fotos "equipo", "casa" y "trabajo". Si la
+// mitigación se realizó, las 3 fotos son obligatorias; si no se pudo
+// realizar, la del trabajo es opcional. La alerta pasa a "en revisión".
+router.post('/:id/informes', authorize('equipo_mitigacion'), verificarPuedeInformar, recibirFotos, async (req, res) => {
   const fotos = req.files || {};
+  const resultado = req.body.resultado;
   const observacion = String(req.body.observacion || '').trim();
+  const obligatorias = resultado === 'realizada' ? TIPOS_FOTO : ['equipo', 'casa'];
+  const subidas = TIPOS_FOTO.filter((tipo) => fotos[tipo]);
 
   let error = null;
-  if (!TIPOS_FOTO.every((tipo) => fotos[tipo])) {
-    error = 'Sube las 3 fotos: el equipo, la casa y el trabajo realizado';
-  } else if (!TIPOS_FOTO.every((tipo) => esImagenValida(fotos[tipo][0].path))) {
+  if (!RESULTADOS.includes(resultado)) {
+    error = 'Indica si la mitigación se realizó o no se pudo realizar';
+  } else if (!obligatorias.every((tipo) => fotos[tipo])) {
+    error =
+      resultado === 'realizada'
+        ? 'Sube las 3 fotos: el equipo, la casa y el trabajo realizado'
+        : 'Sube al menos la foto del equipo y la de la casa';
+  } else if (!subidas.every((tipo) => esImagenValida(fotos[tipo][0].path))) {
     error = 'Alguno de los archivos no es una foto válida (JPG, PNG o WebP)';
   } else if (observacion.length < 5) {
-    error = 'Describe brevemente qué se hizo para mitigar la alerta';
+    error = resultado === 'realizada' ? 'Describe brevemente qué se hizo' : 'Explica por qué no se pudo realizar la mitigación';
   } else if (observacion.length > 500) {
     error = 'La descripción puede tener hasta 500 caracteres';
   }
@@ -214,22 +257,24 @@ router.put('/:id/mitigada', authorize('equipo_mitigacion'), verificarPuedeMitiga
   const conexion = await db.getConnection();
   try {
     await conexion.beginTransaction();
-    const [resultado] = await conexion.query(
-      `UPDATE alertas
-       SET estado = 'mitigada', mitigado_por = ?, mitigado_en = NOW(), observacion_mitigacion = ?, leida = 1
-       WHERE id = ? AND estado = 'asignada'`,
-      [req.user.id, observacion, req.params.id]
-    );
-    if (resultado.affectedRows === 0) {
+    const [cambio] = await conexion.query(`UPDATE alertas SET estado = 'en_revision' WHERE id = ? AND estado = 'asignada'`, [req.params.id]);
+    if (cambio.affectedRows === 0) {
       await conexion.rollback();
       borrarArchivos(fotos);
-      return res.status(400).json({ error: 'La alerta ya fue marcada como mitigada' });
+      return res.status(400).json({ error: 'Ya enviaste el informe de esta alerta; está en revisión' });
     }
-    await conexion.query('INSERT INTO fotos_mitigacion (alerta_id, tipo, archivo, subido_por) VALUES ?', [
-      TIPOS_FOTO.map((tipo) => [req.params.id, tipo, fotos[tipo][0].filename, req.user.id]),
-    ]);
+    const [informe] = await conexion.query(
+      `INSERT INTO informes_mitigacion (alerta_id, equipo_id, resultado, observacion, enviado_por, enviado_en)
+       VALUES (?, ?, ?, ?, ?, NOW())`,
+      [req.params.id, req.equipoDeLaAlerta, resultado, observacion, req.user.id]
+    );
+    if (subidas.length > 0) {
+      await conexion.query('INSERT INTO fotos_mitigacion (alerta_id, informe_id, tipo, archivo, subido_por) VALUES ?', [
+        subidas.map((tipo) => [req.params.id, informe.insertId, tipo, fotos[tipo][0].filename, req.user.id]),
+      ]);
+    }
     await conexion.commit();
-    res.json({ ok: true });
+    res.status(201).json({ ok: true, informe_id: informe.insertId });
   } catch (err) {
     await conexion.rollback();
     borrarArchivos(fotos);
@@ -239,18 +284,69 @@ router.put('/:id/mitigada', authorize('equipo_mitigacion'), verificarPuedeMitiga
   }
 });
 
-// GET /api/alertas/:id/fotos/:tipo - devuelve una foto de evidencia. Las ven
-// administradores, empleados y el jefe del equipo que atendió la alerta.
-router.get('/:id/fotos/:tipo', async (req, res) => {
+// PUT /api/alertas/:id/aprobar - un administrador o empleado aprueba el
+// informe pendiente (solo si el equipo informó que la mitigación se realizó)
+// y la alerta queda mitigada. "comentario" es opcional.
+router.put('/:id/aprobar', authorize('administrador', 'empleado'), async (req, res) => {
+  const comentario = String(req.body.comentario || '').trim();
+  if (comentario.length > 500) {
+    return res.status(400).json({ error: 'El comentario puede tener hasta 500 caracteres' });
+  }
+
+  const conexion = await db.getConnection();
+  try {
+    await conexion.beginTransaction();
+    const [alertas] = await conexion.query('SELECT estado FROM alertas WHERE id = ? FOR UPDATE', [req.params.id]);
+    if (alertas.length === 0) {
+      await conexion.rollback();
+      return res.status(404).json({ error: 'Alerta no encontrada' });
+    }
+    const [informes] = await conexion.query(
+      `SELECT * FROM informes_mitigacion WHERE alerta_id = ? AND revision = 'pendiente' ORDER BY id DESC LIMIT 1 FOR UPDATE`,
+      [req.params.id]
+    );
+    if (alertas[0].estado !== 'en_revision' || informes.length === 0) {
+      await conexion.rollback();
+      return res.status(400).json({ error: 'La alerta no tiene un informe pendiente de revisión' });
+    }
+    const informe = informes[0];
+    if (informe.resultado !== 'realizada') {
+      await conexion.rollback();
+      return res.status(400).json({ error: 'El equipo informó que no pudo realizar la mitigación: reasigna la alerta para una nueva visita' });
+    }
+
+    await conexion.query(
+      `UPDATE informes_mitigacion SET revision = 'aprobado', revisado_por = ?, revisado_en = NOW(), comentario_revision = ? WHERE id = ?`,
+      [req.user.id, comentario || null, informe.id]
+    );
+    await conexion.query(
+      `UPDATE alertas SET estado = 'mitigada', mitigado_por = ?, mitigado_en = ?, observacion_mitigacion = ?, leida = 1 WHERE id = ?`,
+      [informe.enviado_por, informe.enviado_en, informe.observacion, req.params.id]
+    );
+    await conexion.commit();
+    res.json({ ok: true });
+  } catch (err) {
+    await conexion.rollback();
+    res.status(500).json({ error: err.message });
+  } finally {
+    conexion.release();
+  }
+});
+
+// GET /api/alertas/:id/informes/:informeId/fotos/:tipo - devuelve una foto
+// de evidencia de un informe. Las ven administradores, empleados y el jefe
+// del equipo al que está asignada la alerta.
+router.get('/:id/informes/:informeId/fotos/:tipo', async (req, res) => {
   if (!TIPOS_FOTO.includes(req.params.tipo)) {
     return res.status(404).json({ error: 'Foto no encontrada' });
   }
   try {
     const [rows] = await db.query(
       `SELECT f.archivo, a.equipo_id FROM fotos_mitigacion f
-       JOIN alertas a ON a.id = f.alerta_id
-       WHERE f.alerta_id = ? AND f.tipo = ?`,
-      [req.params.id, req.params.tipo]
+       JOIN informes_mitigacion i ON i.id = f.informe_id
+       JOIN alertas a ON a.id = i.alerta_id
+       WHERE i.id = ? AND i.alerta_id = ? AND f.tipo = ?`,
+      [req.params.informeId, req.params.id, req.params.tipo]
     );
     if (rows.length === 0) {
       return res.status(404).json({ error: 'Foto no encontrada' });

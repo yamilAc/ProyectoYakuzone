@@ -39,6 +39,7 @@ import PersonIcon from '@mui/icons-material/Person';
 import axios from '../axios/axiosConfig';
 import PageHeader from '../components/PageHeader';
 import { evaluarEstadoSensor, COLORES_ESTADO, ETIQUETAS_ESTADO, crearIconoEstado } from '../utils/estadoSensor';
+import { getUserRole } from '../axios/auth';
 
 // Centro por defecto para el mini-mapa del formulario: OTB Urbanización
 // Halein, Chiquicollo, Cochabamba (mismo centro que Zonas/Dashboard).
@@ -79,7 +80,10 @@ const SelectorDeUbicacion = ({ onSeleccionar }) => {
   return null;
 };
 
+// El administrador da de alta, edita y elimina sensores; el empleado (que
+// llega desde el Dashboard) solo los consulta.
 const Sensores = () => {
+  const esAdmin = getUserRole() === 'administrador';
   const [sensores, setSensores] = useState([]);
   const [ultimasPorSensor, setUltimasPorSensor] = useState({});
   const [cargando, setCargando] = useState(true);
@@ -226,16 +230,18 @@ const Sensores = () => {
       <PageHeader
         icon={SensorsIcon}
         title="Gestión de Sensores"
-        subtitle="Alta, edición y baja de los nodos IoT registrados en el sistema"
+        subtitle={esAdmin ? 'Alta, edición y baja de los nodos IoT registrados en el sistema' : 'Nodos IoT registrados en el sistema'}
         action={
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={abrirNuevo}
-            sx={{ bgcolor: 'rgba(255,255,255,0.18)', '&:hover': { bgcolor: 'rgba(255,255,255,0.28)' } }}
-          >
-            Nuevo sensor
-          </Button>
+          esAdmin && (
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={abrirNuevo}
+              sx={{ bgcolor: 'rgba(255,255,255,0.18)', '&:hover': { bgcolor: 'rgba(255,255,255,0.28)' } }}
+            >
+              Nuevo sensor
+            </Button>
+          )
         }
       />
 
@@ -270,7 +276,7 @@ const Sensores = () => {
             <Typography variant="h6">
               {sensores.length === 0 ? 'Todavía no hay sensores registrados' : 'Ningún sensor coincide con la búsqueda'}
             </Typography>
-            {sensores.length === 0 && (
+            {sensores.length === 0 && esAdmin && (
               <Button variant="outlined" startIcon={<AddIcon />} sx={{ mt: 2 }} onClick={abrirNuevo}>
                 Registrar el primero
               </Button>
@@ -346,8 +352,8 @@ const Sensores = () => {
                         )}
 
                         <Box sx={{ flex: 1 }} />
-                        <Divider sx={{ my: 1 }} />
-                        <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
+                        {esAdmin && <Divider sx={{ my: 1 }} />}
+                        <Box sx={{ display: esAdmin ? 'flex' : 'none', justifyContent: 'flex-end', gap: 1 }}>
                           <Tooltip title="Editar sensor">
                             <IconButton size="small" onClick={() => abrirEditar(sensor)}>
                               <EditIcon fontSize="small" />

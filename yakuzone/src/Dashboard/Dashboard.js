@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Container,
   Typography,
@@ -28,6 +29,7 @@ import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import SearchIcon from '@mui/icons-material/Search';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import { motion } from 'framer-motion';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import axios from '../axios/axiosConfig';
@@ -145,12 +147,12 @@ const Dashboard = () => {
   const [sensores, setSensores] = useState([]);
   const [lecturas, setLecturas] = useState([]);
   const [ultimasPorSensor, setUltimasPorSensor] = useState({});
-  const [resumenAlertas, setResumenAlertas] = useState({ pendiente: 0, asignada: 0 });
+  const [resumenAlertas, setResumenAlertas] = useState({ pendiente: 0, asignada: 0, en_revision: 0 });
   const [loading, setLoading] = useState(true);
   const [currentTime, setCurrentTime] = useState(new Date());
 
   const [busqueda, setBusqueda] = useState('');
-  const [verTodos, setVerTodos] = useState(false);
+  const navigate = useNavigate();
   const [seleccionId, setSeleccionId] = useState(TODOS);
   const [lecturasSeleccion, setLecturasSeleccion] = useState([]);
   const [parametroAbierto, setParametroAbierto] = useState('valor_ph');
@@ -220,12 +222,12 @@ const Dashboard = () => {
     );
   }, [sensores, busqueda]);
 
-  const sensoresVisibles = verTodos ? sensoresFiltrados : sensoresFiltrados.slice(0, MAX_SENSORES_VISIBLES);
+  const sensoresVisibles = sensoresFiltrados.slice(0, MAX_SENSORES_VISIBLES);
   const sensoresValidos = sensores.filter((s) => s.latitud !== null && s.longitud !== null);
   const seleccionado = seleccionId === TODOS ? null : sensores.find((s) => s.id === seleccionId) || null;
   const enMapa = seleccionado ? sensoresValidos.filter((s) => s.id === seleccionado.id) : sensoresValidos;
-  // Activas = todavía sin mitigar (sin asignar o asignadas a un equipo).
-  const alertasActivas = resumenAlertas.pendiente + resumenAlertas.asignada;
+  // Activas = todavía sin mitigar (sin asignar, asignadas o con informe por revisar).
+  const alertasActivas = resumenAlertas.pendiente + resumenAlertas.asignada + (resumenAlertas.en_revision || 0);
   const placeholders = busqueda ? 0 : Math.max(0, TOTAL_NODOS_PLANEADOS - sensores.length);
   const ultimaSeleccion = seleccionado ? ultimasPorSensor[seleccionado.id] : null;
 
@@ -301,10 +303,7 @@ const Dashboard = () => {
                 size="small"
                 placeholder="Buscar sensor por número, ubicación o propietario..."
                 value={busqueda}
-                onChange={(e) => {
-                  setBusqueda(e.target.value);
-                  setVerTodos(false);
-                }}
+                onChange={(e) => setBusqueda(e.target.value)}
                 sx={{ width: { xs: '100%', sm: 380 }, bgcolor: 'background.paper', borderRadius: 2 }}
                 InputProps={{
                   startAdornment: (
@@ -341,12 +340,15 @@ const Dashboard = () => {
                 ))}
               </Grid>
             )}
-            <Box sx={{ display: 'flex', justifyContent: 'center', mb: 4, minHeight: 8 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flexDirection: 'column', gap: 0.5, mb: 4 }}>
               {sensoresFiltrados.length > MAX_SENSORES_VISIBLES && (
-                <Button variant="outlined" onClick={() => setVerTodos((v) => !v)} endIcon={<ExpandMoreIcon sx={{ transform: verTodos ? 'rotate(180deg)' : 'none' }} />}>
-                  {verTodos ? 'Ver menos' : `Ver todos los sensores (${sensoresFiltrados.length})`}
-                </Button>
+                <Typography variant="caption" color="text.secondary">
+                  Se muestran {MAX_SENSORES_VISIBLES} de {sensoresFiltrados.length} sensores
+                </Typography>
               )}
+              <Button variant="outlined" endIcon={<ArrowForwardIcon />} onClick={() => navigate('/Sensores')}>
+                Ver todos los sensores ({sensores.length})
+              </Button>
             </Box>
 
             <Grid container spacing={3} ref={actividadRef} sx={{ scrollMarginTop: 16 }}>

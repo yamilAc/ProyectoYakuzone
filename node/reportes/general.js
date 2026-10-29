@@ -33,12 +33,12 @@ function pdf(res, datos, { nombreArchivo, generadoPor }) {
   c.cuadrosResumen(doc, [
     { valor: resumen.total, etiqueta: 'Alertas generadas' },
     { valor: resumen.porEstado.mitigada, etiqueta: 'Alertas mitigadas' },
-    { valor: resumen.porEstado.pendiente + resumen.porEstado.asignada, etiqueta: 'Alertas sin mitigar' },
+    { valor: resumen.total - resumen.porEstado.mitigada, etiqueta: 'Alertas sin mitigar' },
     { valor: resumen.horasMitigacion === null ? '—' : `${c.fmtNum(resumen.horasMitigacion, 1)} h`, etiqueta: 'Tiempo prom. hasta mitigar' },
   ]);
   c.parrafo(
     doc,
-    `Alertas por estado: sin asignar ${resumen.porEstado.pendiente} · asignadas ${resumen.porEstado.asignada} · mitigadas ${resumen.porEstado.mitigada}. Por parámetro: ${textoPorParametro(resumen.porParametro)}.`
+    `Alertas por estado: sin asignar ${resumen.porEstado.pendiente} · asignadas ${resumen.porEstado.asignada} · pendientes de revisión ${resumen.porEstado.en_revision} · mitigadas ${resumen.porEstado.mitigada}. Por parámetro: ${textoPorParametro(resumen.porParametro)}.`
   );
   c.parrafo(doc, `Rangos aceptables (NB 512-04): pH ${rangoTexto('ph')}; turbidez ${rangoTexto('turbidez')}; conductividad ${rangoTexto('conductividad')}.`, {
     color: '#607D8B',
@@ -116,7 +116,7 @@ function pdf(res, datos, { nombreArchivo, generadoPor }) {
         e.minutos_prom === null ? '—' : `${c.fmtNum(horas(e.minutos_prom), 1)} h`,
       ])
     );
-    c.parrafo(doc, 'Tiempo de atención: desde que se asigna la alerta al equipo hasta que su jefe la marca como mitigada.', {
+    c.parrafo(doc, 'En curso: asignadas o con informe pendiente de revisión. Tiempo de atención: desde que se asigna la alerta hasta la visita aprobada.', {
       color: '#607D8B',
       tamano: 8,
     });
@@ -168,6 +168,7 @@ async function excel(res, datos, { nombreArchivo, generadoPor }) {
       ['Alertas generadas', resumen.total],
       ['Sin asignar', resumen.porEstado.pendiente],
       ['Asignadas (en curso)', resumen.porEstado.asignada],
+      ['Pendientes de revisión', resumen.porEstado.en_revision],
       ['Mitigadas', resumen.porEstado.mitigada],
       ['Alertas por parámetro', textoPorParametro(resumen.porParametro)],
       ['Tiempo promedio hasta mitigar (horas)', resumen.horasMitigacion === null ? '—' : Number(resumen.horasMitigacion.toFixed(1))],

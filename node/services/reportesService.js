@@ -20,7 +20,8 @@ async function listarAlertas(filtros) {
             e.nombre AS equipo_nombre,
             ua.nombre AS asignado_por_nombre, ua.apellido AS asignado_por_apellido,
             um.nombre AS mitigado_por_nombre, um.apellido AS mitigado_por_apellido,
-            (SELECT COUNT(*) FROM fotos_mitigacion f WHERE f.alerta_id = a.id) AS fotos
+            (SELECT COUNT(*) FROM fotos_mitigacion f WHERE f.alerta_id = a.id) AS fotos,
+            (SELECT COUNT(*) FROM informes_mitigacion i WHERE i.alerta_id = a.id) AS visitas
      FROM alertas a
      JOIN sensores s ON s.id = a.sensor_id
      LEFT JOIN equipos_mitigacion e ON e.id = a.equipo_id
@@ -48,7 +49,7 @@ function horasPromedioMitigacion(alertas) {
 
 // Cuenta alertas por estado y por parámetro.
 function resumirAlertas(alertas) {
-  const porEstado = { pendiente: 0, asignada: 0, mitigada: 0 };
+  const porEstado = { pendiente: 0, asignada: 0, en_revision: 0, mitigada: 0 };
   const porParametro = {};
   for (const a of alertas) {
     porEstado[a.estado] = (porEstado[a.estado] || 0) + 1;
@@ -150,7 +151,7 @@ async function datosReporteGeneral({ desde, hasta }) {
     `SELECT e.id, e.nombre, u.nombre AS jefe_nombre, u.apellido AS jefe_apellido,
             COUNT(a.id) AS asignadas,
             SUM(a.estado = 'mitigada') AS mitigadas,
-            SUM(a.estado = 'asignada') AS en_curso,
+            SUM(a.estado IN ('asignada', 'en_revision')) AS en_curso,
             AVG(CASE WHEN a.estado = 'mitigada' THEN TIMESTAMPDIFF(MINUTE, a.asignado_en, a.mitigado_en) END) AS minutos_prom
      FROM equipos_mitigacion e
      LEFT JOIN usuarios u ON u.id = e.jefe_id

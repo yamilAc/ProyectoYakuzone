@@ -23,25 +23,41 @@ import PageHeader from '../components/PageHeader';
 import DetalleAlerta from './DetalleAlerta';
 import { FotosEvidencia, TIPOS_FOTO } from './FotosMitigacion';
 import { getUserRole } from '../axios/auth';
-import { ESTADOS_ALERTA, EVENTO_ALERTAS_CAMBIARON, textoParametro, textoValor, formatearFecha } from '../utils/alertas';
+import { ESTADOS_ALERTA, RESULTADOS_VISITA, EVENTO_ALERTAS_CAMBIARON, textoParametro, textoValor, formatearFecha } from '../utils/alertas';
 
-// Administradores y empleados ven todas las alertas y las asignan a un
-// equipo; el jefe de un equipo de mitigación solo ve las de su equipo.
+// Administradores y empleados ven todas las alertas, las asignan a un
+// equipo y revisan los informes de las visitas (pestaña Pendientes); el jefe
+// de un equipo de mitigación solo ve las de su equipo.
 const PESTANAS_GESTION = [
   { estado: 'pendiente', label: 'Sin asignar' },
   { estado: 'asignada', label: 'Asignadas' },
+  { estado: 'en_revision', label: 'Pendientes' },
   { estado: 'mitigada', label: 'Mitigadas' },
   { estado: '', label: 'Todas' },
 ];
 const PESTANAS_JEFE = [
   { estado: 'asignada', label: 'Por atender' },
+  { estado: 'en_revision', label: 'En revisión' },
   { estado: 'mitigada', label: 'Mitigadas' },
 ];
 
-// Miniaturas de las 3 fotos de evidencia en la tarjeta de una alerta
-// mitigada. Se descargan recién cuando la tarjeta aparece en pantalla; tocar
-// una la amplía (sin abrir el detalle de la alerta).
-const FotosEnTarjeta = ({ alertaId }) => {
+const MENSAJES_VACIO = {
+  pendiente: 'No hay alertas sin asignar.',
+  asignada: 'No hay alertas asignadas esperando la visita del equipo.',
+  en_revision: 'No hay informes de visita pendientes de revisión.',
+  mitigada: 'Todavía no hay alertas mitigadas.',
+  '': 'Todavía no hay notificaciones.',
+};
+const MENSAJES_VACIO_JEFE = {
+  asignada: 'Tu equipo no tiene alertas por atender.',
+  en_revision: 'No tienes informes esperando revisión.',
+  mitigada: 'Todavía no hay alertas mitigadas por tu equipo.',
+};
+
+// Miniaturas de las fotos del último informe de visita en la tarjeta de una
+// alerta (en revisión o mitigada). Se descargan recién cuando la tarjeta
+// aparece en pantalla; tocar una la amplía (sin abrir el detalle de la alerta).
+const FotosEnTarjeta = ({ alertaId, informeId }) => {
   const ref = useRef(null);
   const [visible, setVisible] = useState(false);
   useEffect(() => {
@@ -52,7 +68,7 @@ const FotosEnTarjeta = ({ alertaId }) => {
   }, [visible]);
   return (
     <Box ref={ref} onClick={(e) => e.stopPropagation()} sx={{ mt: 1, maxWidth: 380, minHeight: 64 }}>
-      {visible && <FotosEvidencia alertaId={alertaId} tipos={TIPOS_FOTO.map((t) => t.tipo)} alto={64} />}
+      {visible && <FotosEvidencia alertaId={alertaId} informeId={informeId} tipos={TIPOS_FOTO.map((t) => t.tipo)} alto={64} />}
     </Box>
   );
 };
@@ -63,7 +79,7 @@ const Alerta = () => {
 
   const [tab, setTab] = useState(0);
   const [alertas, setAlertas] = useState([]);
-  const [resumen, setResumen] = useState({ pendiente: 0, asignada: 0, mitigada: 0 });
+  const [resumen, setResumen] = useState({ pendiente: 0, asignada: 0, en_revision: 0, mitigada: 0 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [busqueda, setBusqueda] = useState('');
@@ -113,9 +129,12 @@ const Alerta = () => {
     );
   }, [alertas, busqueda]);
 
-  const totalTodas = resumen.pendiente + resumen.asignada + resumen.mitigada;
-  const contador = (e) => (e ? resumen[e] : totalTodas);
-  const porAtender = esJefe ? resumen.asignada : resumen.pendiente;
+  const totalTodas = resumen.pendiente + resumen.asignada + (resumen.en_revision || 0) + resumen.mitigada;
+  const contador = (e) => (e ? resumen[e] || 0 : totalTodas);
+  const avisosEncabezado = esJefe
+    ? [resumen.asignada > 0 && `${resumen.asignada} por atender`]
+    : [resumen.pendiente > 0 && `${resumen.pendiente} sin asignar`, resumen.en_revision > 0 && `${resumen.en_revision} por revisar`];
+  const textoEncabezado = avisosEncabezado.filter(Boolean).join(' · ');
 
   return (
     <>
@@ -128,9 +147,9 @@ const Alerta = () => {
             : 'Alertas de calidad del agua: revisa cada una y asígnala a un equipo de mitigación'
         }
         action={
-          porAtender > 0 && (
+          textoEncabezado && (
             <Chip
-              label={esJefe ? `${porAtender} por atender` : `${porAtender} sin asignar`}
+              label={textoEncabezado}
               sx={{ color: '#fff', bgcolor: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.4)', fontWeight: 600 }}
             />
           )
@@ -173,17 +192,7 @@ const Alerta = () => {
           <Typography color="error">{error}</Typography>
         ) : visibles.length === 0 ? (
           <Typography color="text.secondary">
-            {busqueda
-              ? 'Ninguna alerta coincide con la búsqueda.'
-              : estado === 'pendiente'
-              ? 'No hay alertas sin asignar.'
-              : estado === 'asignada'
-              ? esJefe
-                ? 'Tu equipo no tiene alertas por atender.'
-                : 'No hay alertas asignadas en curso.'
-              : estado === 'mitigada'
-              ? 'Todavía no hay alertas mitigadas.'
-              : 'Todavía no hay notificaciones.'}
+            {busqueda ? 'Ninguna alerta coincide con la búsqueda.' : (esJefe ? MENSAJES_VACIO_JEFE : MENSAJES_VACIO)[estado]}
           </Typography>
         ) : (
           <Stack spacing={1.5}>
@@ -219,7 +228,17 @@ const Alerta = () => {
                           <Typography variant="subtitle1" fontWeight={600}>
                             {alerta.numero_serie} — {textoParametro(alerta.parametro)}: {textoValor(alerta.parametro, alerta.valor)}
                           </Typography>
-                          <Chip label={info.label} size="small" sx={{ bgcolor: info.color, color: '#fff', fontWeight: 600 }} />
+                          <Stack direction="row" spacing={0.6}>
+                            {alerta.estado === 'en_revision' && RESULTADOS_VISITA[alerta.ultimo_resultado] && (
+                              <Chip
+                                label={RESULTADOS_VISITA[alerta.ultimo_resultado].label}
+                                size="small"
+                                variant="outlined"
+                                sx={{ borderColor: RESULTADOS_VISITA[alerta.ultimo_resultado].color, color: RESULTADOS_VISITA[alerta.ultimo_resultado].color, fontWeight: 600 }}
+                              />
+                            )}
+                            <Chip label={info.label} size="small" sx={{ bgcolor: info.color, color: '#fff', fontWeight: 600 }} />
+                          </Stack>
                         </Box>
                         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={{ xs: 0.3, sm: 2 }} sx={{ mt: 0.5 }}>
                           <Typography variant="body2" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
@@ -236,7 +255,9 @@ const Alerta = () => {
                           {alerta.propietario_nombre && ` · Propietario: ${alerta.propietario_nombre}`}
                           {alerta.mitigado_en && ` · Mitigada el ${formatearFecha(alerta.mitigado_en)}`}
                         </Typography>
-                        {alerta.estado === 'mitigada' && alerta.fotos > 0 && <FotosEnTarjeta alertaId={alerta.id} />}
+                        {['en_revision', 'mitigada'].includes(alerta.estado) && alerta.fotos > 0 && (
+                          <FotosEnTarjeta alertaId={alerta.id} informeId={alerta.ultimo_informe_id} />
+                        )}
                       </Box>
                       <ChevronRightIcon color="action" />
                     </Paper>
