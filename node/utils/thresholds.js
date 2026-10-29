@@ -1,13 +1,10 @@
 // Umbrales de referencia según la Norma Boliviana NB 512-04 "Agua Potable - Requisitos"
-// (Ministerio de Servicios y Obras Públicas, 2004), usados por el módulo de alertas.
-//
-// El valor de conductividad eléctrica se estima a partir del límite de sólidos
-// disueltos totales que sí figura en la norma (~1000 mg STD/L), usando la
-// equivalencia aproximada habitual (STD ≈ 0.64 x conductividad en µS/cm).
-// CONFIRMAR este valor con el tutor/tribunal antes de presentarlo como definitivo.
+// (Ministerio de Servicios y Obras Públicas, 2004, 3ra revisión), usados por el
+// módulo de alertas. Valores máximos aceptables de la norma: pH 6,5 - 9,0;
+// turbiedad 5 UNT y conductividad 1500 µS/cm (Tabla 6, características físicas).
 const UMBRALES = {
-  ph: { min: 6.5, max: 8.5, unidad: '' },
-  turbidez: { min: 0, max: 1, unidad: ' NTU' },
+  ph: { min: 6.5, max: 9.0, unidad: '' },
+  turbidez: { min: 0, max: 5, unidad: ' NTU' },
   conductividad: { min: 0, max: 1500, unidad: ' µS/cm' },
   // La norma no fija un valor numérico para temperatura: no se generan alertas por este parámetro.
 };
@@ -45,7 +42,7 @@ function evaluarLectura({ valor_ph, valor_turbidez, valor_conductividad }) {
 
 // Representación legible del rango de referencia de un parámetro (para
 // mostrarlo en el módulo de mitigación y enviarlo como contexto a la API de
-// Gemini). Ej: "6.5 - 8.5" o "0 - 1 NTU".
+// Gemini). Ej: "6.5 - 9" o "0 - 5 NTU".
 function rangoTexto(parametro) {
   const rango = UMBRALES[parametro];
   if (!rango) return 'No definido';

@@ -10,7 +10,7 @@ const usuariosRoutes = require('./routes/usuarios');
 const sensoresRoutes = require('./routes/sensores');
 const lecturasRoutes = require('./routes/lecturas');
 const alertasRoutes = require('./routes/alertas');
-const mitigacionRoutes = require('./routes/mitigacion');
+const equiposRoutes = require('./routes/equipos');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -26,7 +26,7 @@ app.use('/api/usuarios', usuariosRoutes);
 app.use('/api/sensores', sensoresRoutes);
 app.use('/api/lecturas', lecturasRoutes);
 app.use('/api/alertas', alertasRoutes);
-app.use('/api/mitigacion', mitigacionRoutes);
+app.use('/api/equipos', equiposRoutes);
 
 app.use((req, res) => {
   res.status(404).json({ error: 'Ruta no encontrada' });

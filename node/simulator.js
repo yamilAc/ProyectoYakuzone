@@ -83,13 +83,13 @@ function siguienteLectura(nSerie) {
     // Punto de partida ya dentro de la zona de falla, para que arranque
     // sostenido desde el primer tick del evento.
     if (parametro === 'turbidez') {
-      actual.turbidez = numeroAleatorio(1.4, 1.8);
+      actual.turbidez = numeroAleatorio(5.6, 6.4);
     } else if (parametro === 'conductividad') {
       actual.conductividad = numeroAleatorio(1600, 1900);
     } else if (direccion === 'bajo') {
       actual.ph = numeroAleatorio(5.2, 5.8);
     } else {
-      actual.ph = numeroAleatorio(9.0, 9.3);
+      actual.ph = numeroAleatorio(9.3, 9.6);
     }
     console.log(`⚠️  (${nSerie}) inicia evento simulado de "${parametro}" (${direccion}) fuera de rango (~${actual.evento.ticksRestantes * (INTERVALO_MS / 1000)}s)`);
   }
@@ -99,7 +99,7 @@ function siguienteLectura(nSerie) {
     if (parametro === 'turbidez') {
       // Camina suavemente dentro de la banda de falla, sin volver a rango
       // normal hasta que el evento termine (ni tocar los demás parámetros).
-      actual.turbidez = clamp(actual.turbidez + numeroAleatorio(-0.15, 0.15), 1.2, 3);
+      actual.turbidez = clamp(actual.turbidez + numeroAleatorio(-0.15, 0.15), 5.3, 8);
     } else if (parametro === 'conductividad') {
       actual.conductividad = clamp(actual.conductividad + numeroAleatorio(-40, 40), 1550, 2200);
     } else {
@@ -108,7 +108,7 @@ function siguienteLectura(nSerie) {
       if (direccion === 'bajo') {
         actual.ph = clamp(actual.ph + numeroAleatorio(-0.15, 0.15), 4.5, 6.3);
       } else {
-        actual.ph = clamp(actual.ph + numeroAleatorio(-0.15, 0.15), 8.7, 9.5);
+        actual.ph = clamp(actual.ph + numeroAleatorio(-0.15, 0.15), 9.2, 9.8);
       }
     }
 

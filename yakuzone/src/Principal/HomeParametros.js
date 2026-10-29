@@ -20,14 +20,14 @@ const PARAMETROS = [
     icon: OpacityIcon,
     color: '#9C27B0',
     titulo: 'Turbidez',
-    rango: '0 – 1 NTU',
+    rango: '0 – 5 NTU',
     texto: 'Mide las partículas en suspensión. Niveles altos pueden ocultar microorganismos patógenos y afectar la desinfección.',
   },
   {
     icon: ScienceIcon,
     color: '#ED6C02',
     titulo: 'pH',
-    rango: '6.5 – 8.5',
+    rango: '6.5 – 9.0',
     texto: 'Indica el equilibrio ácido-base del agua. Fuera de rango puede corroer tuberías o irritar la piel.',
   },
   {

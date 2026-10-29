@@ -1,24 +1,26 @@
 // Módulo de mitigación (objetivo 9 del alcance / sección 7.21 del perfil):
 // cuando el módulo de alertas confirma que un parámetro se mantiene fuera
 // de rango, se consulta la API de Gemini para obtener una recomendación de
-// acción correctiva, se guarda como sugerencia (pendiente/atendida) y se
-// notifica por correo al equipo de mitigación.
+// acción correctiva y se guarda como sugerencia de la alerta. Cuando un
+// administrador o empleado asigna la alerta a un equipo de mitigación (desde
+// Notificaciones), se avisa por correo solo al jefe de ese equipo.
 const db = require('../db');
 const { ETIQUETAS, rangoTexto } = require('../utils/thresholds');
 const { generarRecomendacion } = require('../utils/gemini');
-const { enviarCorreo } = require('../utils/mailer');
+const { enviarCorreo, escaparHtml } = require('../utils/mailer');
+const { obtenerDetalleAlerta } = require('./alertasService');
 
 // Texto de respaldo si la API de Gemini no está configurada o falla, para
-// que la sugerencia igual quede registrada (con estado pendiente) y el
-// equipo de mitigación sepa que hay que revisarla manualmente.
+// que la sugerencia igual quede registrada y el equipo de mitigación sepa
+// que hay que revisar la alerta manualmente.
 function sugerenciaDeRespaldo({ etiquetaParametro, valor, rango }) {
   return `No se pudo generar una recomendación automática en este momento. Revisar manualmente: ${etiquetaParametro} = ${valor} (rango aceptable: ${rango}).`;
 }
 
 // Se llama desde services/lecturasService.js, sin bloquear el registro de la
 // lectura/alerta (ver el comentario en ese archivo) — un fallo aquí (Gemini
-// caído, SMTP mal configurado, etc.) no debe impedir que la lectura y la
-// alerta queden guardadas, que es lo crítico del flujo de ingesta.
+// caído, etc.) no debe impedir que la lectura y la alerta queden guardadas,
+// que es lo crítico del flujo de ingesta.
 async function generarSugerencia({ alertaId, sensorId, parametro, valor }) {
   const etiquetaParametro = ETIQUETAS[parametro] || parametro;
   const rango = rangoTexto(parametro);
@@ -36,48 +38,55 @@ async function generarSugerencia({ alertaId, sensorId, parametro, valor }) {
      VALUES (?, ?, ?, ?, ?, ?)`,
     [alertaId, sensorId, parametro, valor, rango, sugerenciaTexto]
   );
-  const sugerenciaId = resultado.insertId;
-
-  const correoEnviado = await notificarEquipoMitigacion({
-    etiquetaParametro,
-    valor,
-    rango,
-    ubicacion,
-    sugerenciaTexto,
-  });
-
-  if (correoEnviado) {
-    await db.query('UPDATE sugerencias_mitigacion SET correo_enviado = 1 WHERE id = ?', [sugerenciaId]);
-  }
-
-  return sugerenciaId;
+  return resultado.insertId;
 }
 
-// Envía la sugerencia por correo a todos los usuarios con rol
-// 'equipo_mitigacion'. Devuelve true si se pudo enviar a al menos uno.
-async function notificarEquipoMitigacion({ etiquetaParametro, valor, rango, ubicacion, sugerenciaTexto }) {
-  const [usuarios] = await db.query("SELECT email, nombre FROM usuarios WHERE rol = 'equipo_mitigacion'");
-  if (usuarios.length === 0) {
-    console.warn('[Mitigación] No hay usuarios con rol "equipo_mitigacion" registrados; no se envía correo.');
+// Avisa por correo al jefe del equipo al que se acaba de asignar la alerta,
+// con lo necesario para ir a atenderla: parámetro y valor, ubicación,
+// datos del propietario, instrucciones de quien asignó y la sugerencia de la
+// IA. Devuelve true si el correo salió (y lo deja registrado en la alerta).
+async function notificarAsignacion(alertaId) {
+  const detalle = await obtenerDetalleAlerta(alertaId);
+  if (!detalle || !detalle.equipo || !detalle.equipo.jefe_email) {
+    console.warn(`[Mitigación] La alerta ${alertaId} no tiene un jefe de equipo con correo; no se envía aviso.`);
     return false;
   }
 
-  const asunto = `Yakuzone — Nueva sugerencia de mitigación (${etiquetaParametro})`;
+  const { alerta, sensor, propietario, equipo } = detalle;
+  const etiquetaParametro = ETIQUETAS[alerta.parametro] || alerta.parametro;
+  const fila = (titulo, valor) => (valor ? `<li><strong>${titulo}:</strong> ${escaparHtml(valor)}</li>` : '');
+
+  const asunto = `Yakuzone — Alerta asignada a tu equipo: ${etiquetaParametro} en ${sensor.n_serie}`;
   const html = `
-    <p>Se generó una nueva sugerencia de mitigación para el punto de monitoreo <strong>${ubicacion || 'sin ubicación registrada'}</strong>.</p>
+    <p>Hola ${escaparHtml(equipo.jefe)},</p>
+    <p>Se asignó al equipo <strong>${escaparHtml(equipo.nombre)}</strong> una alerta de calidad del agua del sensor <strong>${escaparHtml(sensor.n_serie)}</strong>.</p>
+    <p><strong>Alerta</strong></p>
     <ul>
-      <li><strong>Parámetro afectado:</strong> ${etiquetaParametro}</li>
-      <li><strong>Valor registrado:</strong> ${valor}</li>
-      <li><strong>Rango aceptable (NB 512-04):</strong> ${rango}</li>
+      ${fila('Parámetro afectado', etiquetaParametro)}
+      ${fila('Valor registrado', alerta.valor)}
+      ${fila('Rango aceptable (NB 512-04)', alerta.rango_referencia)}
+      ${fila('Fecha y hora', new Date(alerta.fecha_hora).toLocaleString('es-BO'))}
     </ul>
-    <p><strong>Recomendación:</strong><br/>${sugerenciaTexto.replace(/\n/g, '<br/>')}</p>
-    <p style="color:#888;font-size:12px;">Esta sugerencia es una orientación inicial automatizada y no reemplaza el criterio profesional de un especialista en tratamiento de agua. Puedes revisarla y marcarla como atendida desde el apartado de Mitigación en la plataforma.</p>
+    <p><strong>Dónde y a quién contactar</strong></p>
+    <ul>
+      ${fila('Ubicación del sensor', sensor.ubicacion)}
+      ${fila('Dirección', propietario && propietario.direccion)}
+      ${fila('Nro. de casa', propietario && propietario.nro_casa)}
+      ${fila('Propietario', propietario && propietario.nombre)}
+      ${fila('Teléfono', propietario && propietario.telefono)}
+      ${fila('Teléfono de emergencia', propietario && propietario.telefono_emergencia)}
+    </ul>
+    ${propietario ? '' : '<p>El sensor todavía no tiene registrados los datos del propietario.</p>'}
+    ${alerta.instrucciones ? `<p><strong>Instrucciones (${escaparHtml(alerta.asignado_por)}):</strong><br/>${escaparHtml(alerta.instrucciones)}</p>` : ''}
+    ${alerta.sugerencia ? `<p><strong>Sugerencia de mitigación (IA):</strong><br/>${escaparHtml(alerta.sugerencia).replace(/\n/g, '<br/>')}</p>` : ''}
+    <p style="color:#888;font-size:12px;">Ingresa a Yakuzone, sección Notificaciones, para ver el detalle y marcar la alerta como mitigada cuando tu equipo termine. La sugerencia de la IA es una orientación inicial automatizada y no reemplaza el criterio profesional de un especialista en tratamiento de agua.</p>
   `;
 
-  const resultados = await Promise.all(
-    usuarios.map((u) => enviarCorreo({ to: u.email, subject: asunto, html }))
-  );
-  return resultados.some(Boolean);
+  const enviado = await enviarCorreo({ to: equipo.jefe_email, subject: asunto, html });
+  if (enviado) {
+    await db.query('UPDATE alertas SET correo_enviado = 1 WHERE id = ?', [alertaId]);
+  }
+  return enviado;
 }
 
-module.exports = { generarSugerencia };
+module.exports = { generarSugerencia, notificarAsignacion };

@@ -35,6 +35,7 @@ import PlaceIcon from '@mui/icons-material/Place';
 import CloseIcon from '@mui/icons-material/Close';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import WifiTetheringIcon from '@mui/icons-material/WifiTethering';
+import PersonIcon from '@mui/icons-material/Person';
 import axios from '../axios/axiosConfig';
 import PageHeader from '../components/PageHeader';
 import { evaluarEstadoSensor, COLORES_ESTADO, ETIQUETAS_ESTADO, crearIconoEstado } from '../utils/estadoSensor';
@@ -49,7 +50,22 @@ const FORM_INICIAL = {
   descripcion: '',
   latitud: CENTRO_DEFAULT.lat,
   longitud: CENTRO_DEFAULT.lng,
+  propietario_nombre: '',
+  propietario_ci: '',
+  propietario_telefono: '',
+  propietario_direccion: '',
+  propietario_nro_casa: '',
+  telefono_emergencia: '',
 };
+
+const CAMPOS_PROPIETARIO = [
+  'propietario_nombre',
+  'propietario_ci',
+  'propietario_telefono',
+  'propietario_direccion',
+  'propietario_nro_casa',
+  'telefono_emergencia',
+];
 
 // Escucha clicks sobre el mini-mapa del formulario y mueve el marcador ahí
 // — así se puede ubicar un sensor nuevo señalando en el plano en vez de
@@ -112,7 +128,8 @@ const Sensores = () => {
       (s) =>
         (s.n_serie || '').toLowerCase().includes(termino) ||
         (s.ubicacion || '').toLowerCase().includes(termino) ||
-        (s.descripcion || '').toLowerCase().includes(termino)
+        (s.descripcion || '').toLowerCase().includes(termino) ||
+        (s.propietario_nombre || '').toLowerCase().includes(termino)
     );
   }, [sensores, busqueda]);
 
@@ -130,6 +147,7 @@ const Sensores = () => {
       descripcion: sensor.descripcion || '',
       latitud: sensor.latitud !== null && sensor.latitud !== undefined ? Number(sensor.latitud) : CENTRO_DEFAULT.lat,
       longitud: sensor.longitud !== null && sensor.longitud !== undefined ? Number(sensor.longitud) : CENTRO_DEFAULT.lng,
+      ...Object.fromEntries(CAMPOS_PROPIETARIO.map((campo) => [campo, sensor[campo] || ''])),
     });
     setDialogoAbierto(true);
   };
@@ -224,7 +242,7 @@ const Sensores = () => {
       <Container maxWidth="lg" sx={{ pb: 5 }}>
         <TextField
           fullWidth
-          placeholder="Buscar por número de serie, ubicación o descripción..."
+          placeholder="Buscar por número de serie, ubicación, descripción o propietario..."
           value={busqueda}
           onChange={(e) => setBusqueda(e.target.value)}
           sx={{ mb: 3, bgcolor: 'background.paper', borderRadius: 2 }}
@@ -310,6 +328,17 @@ const Sensores = () => {
                           </Typography>
                         )}
 
+                        <Typography
+                          variant="body2"
+                          color={sensor.propietario_nombre ? 'text.secondary' : 'warning.main'}
+                          sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}
+                        >
+                          <PersonIcon fontSize="inherit" />
+                          {sensor.propietario_nombre
+                            ? `${sensor.propietario_nombre} · ${sensor.propietario_telefono || 'sin teléfono'}`
+                            : 'Faltan los datos del propietario'}
+                        </Typography>
+
                         {sensor.latitud && sensor.longitud && (
                           <Typography variant="caption" color="text.disabled">
                             {Number(sensor.latitud).toFixed(5)}, {Number(sensor.longitud).toFixed(5)}
@@ -369,7 +398,7 @@ const Sensores = () => {
                   value={formData.ubicacion}
                   onChange={handleInputChange}
                   fullWidth
-                  placeholder="OTB Urbanización Halein, Chiquicollo"
+                  placeholder="OTB Urbanización Hallein, Chiquicollo"
                 />
               </Grid>
               <Grid item xs={12}>
@@ -420,6 +449,79 @@ const Sensores = () => {
                     <SelectorDeUbicacion onSeleccionar={handleSeleccionarUbicacion} />
                   </MapContainer>
                 </Box>
+              </Grid>
+
+              <Grid item xs={12}>
+                <Divider sx={{ mb: 1 }} />
+                <Typography variant="subtitle2" fontWeight={700}>
+                  Propietario de la vivienda
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  Se muestran en el detalle de cada alerta para que el equipo de mitigación sepa a quién contactar.
+                </Typography>
+              </Grid>
+              <Grid item xs={12} sm={8}>
+                <TextField
+                  label="Nombre del propietario"
+                  name="propietario_nombre"
+                  value={formData.propietario_nombre}
+                  onChange={handleInputChange}
+                  fullWidth
+                  required
+                />
+              </Grid>
+              <Grid item xs={12} sm={4}>
+                <TextField
+                  label="CI"
+                  name="propietario_ci"
+                  value={formData.propietario_ci}
+                  onChange={handleInputChange}
+                  fullWidth
+                  required
+                  placeholder="1234567 CB"
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  label="Teléfono"
+                  name="propietario_telefono"
+                  value={formData.propietario_telefono}
+                  onChange={handleInputChange}
+                  fullWidth
+                  required
+                  placeholder="71234567"
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  label="Teléfono de emergencia"
+                  name="telefono_emergencia"
+                  value={formData.telefono_emergencia}
+                  onChange={handleInputChange}
+                  fullWidth
+                  required
+                  helperText="Por si el propietario no contesta"
+                />
+              </Grid>
+              <Grid item xs={12} sm={9}>
+                <TextField
+                  label="Dirección"
+                  name="propietario_direccion"
+                  value={formData.propietario_direccion}
+                  onChange={handleInputChange}
+                  fullWidth
+                  required
+                />
+              </Grid>
+              <Grid item xs={12} sm={3}>
+                <TextField
+                  label="Nº de casa"
+                  name="propietario_nro_casa"
+                  value={formData.propietario_nro_casa}
+                  onChange={handleInputChange}
+                  fullWidth
+                  helperText="Opcional"
+                />
               </Grid>
             </Grid>
           </DialogContent>

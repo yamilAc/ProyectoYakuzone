@@ -55,18 +55,18 @@ const Dashboard = () => {
   const [lecturas, setLecturas] = useState([]);
   const [sensorActividadId, setSensorActividadId] = useState('');
   const [ultimasPorSensor, setUltimasPorSensor] = useState({});
-  const [alertas, setAlertas] = useState([]);
+  const [resumenAlertas, setResumenAlertas] = useState({ pendiente: 0, asignada: 0 });
   const [loading, setLoading] = useState(true);
   const [currentTime, setCurrentTime] = useState(new Date());
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [resSensores, resLecturas, resUltimas, resAlertas] = await Promise.all([
+        const [resSensores, resLecturas, resUltimas, resResumen] = await Promise.all([
           axios.get('/sensores'),
           axios.get('/lecturas'),
           axios.get('/lecturas/ultimas'),
-          axios.get('/alertas'),
+          axios.get('/alertas/resumen'),
         ]);
         setSensores(resSensores.data);
         setSensorActividadId((actual) => actual || (resSensores.data[0] && resSensores.data[0].id) || '');
@@ -76,7 +76,7 @@ const Dashboard = () => {
           mapa[lectura.sensor_id] = lectura;
         });
         setUltimasPorSensor(mapa);
-        setAlertas(resAlertas.data);
+        setResumenAlertas(resResumen.data);
       } catch (error) {
         console.error('Error al cargar el dashboard:', error);
       } finally {
@@ -94,7 +94,8 @@ const Dashboard = () => {
   }, []);
 
   const sensoresValidos = sensores.filter((s) => s.latitud !== null && s.longitud !== null);
-  const alertasActivas = alertas.filter((a) => !a.leida).length;
+  // Activas = todavía sin mitigar (sin asignar o asignadas a un equipo).
+  const alertasActivas = resumenAlertas.pendiente + resumenAlertas.asignada;
   const placeholders = Math.max(0, TOTAL_NODOS_PLANEADOS - sensores.length);
 
   const centro =

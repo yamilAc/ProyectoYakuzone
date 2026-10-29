@@ -11,7 +11,7 @@ import NotificationsIcon from '@mui/icons-material/Notifications';
 import HistoryIcon from '@mui/icons-material/History';
 import PeopleIcon from '@mui/icons-material/People';
 import SensorsIcon from '@mui/icons-material/Sensors';
-import HealingIcon from '@mui/icons-material/Healing';
+import GroupsIcon from '@mui/icons-material/Groups';
 import LogoutIcon from '@mui/icons-material/Logout';
 import logo from './images/logoYakuzone.png';
 
@@ -28,13 +28,11 @@ const buildLinks = (userRole) => {
   if (userRole === 'administrador') {
     base.push({ to: '/DatosHistoricos', label: 'Datos Históricos', icon: HistoryIcon });
     base.push({ to: '/Sensores', label: 'Sensores', icon: SensorsIcon });
+    base.push({ to: '/Equipos', label: 'Equipos', icon: GroupsIcon });
     base.push({ to: '/Usuarios', label: 'Usuarios', icon: PeopleIcon });
   }
-  // Mitigación: visible para administradores y para el equipo de mitigación
-  // (el nuevo rol), no para empleados — ver ProtecteRoute en App.js.
-  if (userRole === 'administrador' || userRole === 'equipo_mitigacion') {
-    base.push({ to: '/Mitigacion', label: 'Mitigación', icon: HealingIcon });
-  }
+  // La mitigación se gestiona desde Notificaciones: ahí se asigna cada alerta
+  // a un equipo y su jefe la marca como mitigada.
   return base;
 };
 
