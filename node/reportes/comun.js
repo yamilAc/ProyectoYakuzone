@@ -61,9 +61,11 @@ function asegurarEspacio(doc, alto) {
 }
 
 // Crea el documento, lo envía como descarga y dibuja el encabezado de marca.
-function iniciarPdf(res, { titulo, subtitulo, nombreArchivo, generadoPor }) {
+// horizontal: hoja apaisada, para tablas con muchas columnas.
+function iniciarPdf(res, { titulo, subtitulo, nombreArchivo, generadoPor, horizontal = false }) {
   const doc = new PDFDocument({
     size: 'LETTER',
+    layout: horizontal ? 'landscape' : 'portrait',
     margins: { top: MARGEN, bottom: MARGEN + 15, left: MARGEN, right: MARGEN },
     bufferPages: true,
     info: { Title: titulo, Author: 'Yakuzone' },

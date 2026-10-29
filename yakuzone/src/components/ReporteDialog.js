@@ -1,54 +1,43 @@
 import React, { useEffect, useState } from 'react';
-import {
-  Alert,
-  Button,
-  Chip,
-  CircularProgress,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  IconButton,
-  Stack,
-  TextField,
-  Typography,
-} from '@mui/material';
+import { Alert, Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, Typography } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import TableViewIcon from '@mui/icons-material/TableView';
 import axios from '../axios/axiosConfig';
+import SelectorPeriodo, { hoyMenos, periodoInvalido, periodoPredefinido } from './SelectorPeriodo';
 
-// "YYYY-MM-DD" de hoy menos n días, en hora local.
-const haceDias = (dias) => {
-  const d = new Date();
-  d.setDate(d.getDate() - dias);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+// Los reportes de Datos Históricos. alertas: de un sensor (necesita `sensor`);
+// alertas-general: todas las alertas del sistema; general: todo el sistema.
+const TIPOS = {
+  alertas: {
+    titulo: (sensor) => `Reporte de alertas — ${sensor ? sensor.n_serie : ''}`,
+    descripcion: 'Datos del sensor y su propietario, resumen de sus alertas y el detalle de cada una: estado, equipo asignado y acciones realizadas.',
+    archivo: (sensor) => `reporte_alertas_${sensor.n_serie}`,
+  },
+  'alertas-general': {
+    titulo: () => 'Reporte general de alertas',
+    descripcion:
+      'Todas las alertas del sistema con los datos del sensor y del propietario (nombre, CI, teléfono, dirección y teléfono de emergencia), el equipo asignado y la mitigación de cada una.',
+    archivo: () => 'reporte_general_alertas',
+  },
+  general: {
+    titulo: () => 'Reporte general',
+    descripcion:
+      'Todo el sistema: indicadores clave, sensores y propietarios, calidad del agua por sensor, alertas, equipos de mitigación y el detalle de las alertas. La versión Excel incluye además todas las lecturas del periodo.',
+    archivo: () => 'reporte_general',
+  },
 };
 
-const ATAJOS = [
-  { label: 'Últimos 7 días', desde: () => haceDias(7) },
-  { label: 'Últimos 30 días', desde: () => haceDias(30) },
-  { label: 'Todo el historial', desde: () => '' },
-];
-
-const DESCRIPCIONES = {
-  general:
-    'Indicadores clave, calidad del agua por sensor, alertas por estado y parámetro, desempeño de los equipos de mitigación y el detalle de las alertas.',
-  alertas: 'Datos del sensor y su propietario, resumen de sus alertas y el detalle de cada una: estado, equipo asignado y acciones realizadas.',
-};
-
-// Descarga de los reportes de Datos Históricos en PDF o Excel.
-// tipo: 'general' | 'alertas' (este último necesita `sensor`).
+// Descarga de los reportes de Datos Históricos en PDF o Excel, para el periodo elegido.
 const ReporteDialog = ({ open, onClose, tipo, sensor }) => {
-  const [desde, setDesde] = useState('');
-  const [hasta, setHasta] = useState('');
+  const [periodo, setPeriodo] = useState(periodoPredefinido('mensual'));
   const [descargando, setDescargando] = useState(null);
   const [error, setError] = useState(null);
+  const config = TIPOS[tipo] || TIPOS.general;
 
   useEffect(() => {
     if (open) {
-      setDesde('');
-      setHasta('');
+      setPeriodo(periodoPredefinido('mensual'));
       setError(null);
     }
   }, [open]);
@@ -57,15 +46,14 @@ const ReporteDialog = ({ open, onClose, tipo, sensor }) => {
     setDescargando(formato);
     setError(null);
     try {
-      const params = { formato, desde: desde || undefined, hasta: hasta || undefined };
+      const params = { formato, desde: periodo.desde || undefined, hasta: periodo.hasta || undefined };
       if (tipo === 'alertas') params.sensor_id = sensor.id;
       const res = await axios.get(`/reportes/${tipo}`, { params, responseType: 'blob' });
 
-      const nombre = tipo === 'alertas' ? `reporte_alertas_${sensor.n_serie}` : 'reporte_general';
       const url = URL.createObjectURL(res.data);
       const enlace = document.createElement('a');
       enlace.href = url;
-      enlace.download = `${nombre}_${haceDias(0)}.${formato}`;
+      enlace.download = `${config.archivo(sensor)}_${hoyMenos(0)}.${formato}`;
       document.body.appendChild(enlace);
       enlace.click();
       enlace.remove();
@@ -84,56 +72,24 @@ const ReporteDialog = ({ open, onClose, tipo, sensor }) => {
     }
   };
 
-  const titulo = tipo === 'alertas' ? `Reporte de alertas — ${sensor ? sensor.n_serie : ''}` : 'Reporte general';
+  const deshabilitado = Boolean(descargando) || periodoInvalido(periodo);
 
   return (
     <Dialog open={open} onClose={() => !descargando && onClose()} fullWidth maxWidth="sm">
       <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        {titulo}
+        {config.titulo(sensor)}
         <IconButton onClick={onClose} size="small" disabled={Boolean(descargando)}>
           <CloseIcon fontSize="small" />
         </IconButton>
       </DialogTitle>
       <DialogContent dividers>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          {DESCRIPCIONES[tipo]}
+          {config.descripcion}
         </Typography>
         <Typography variant="subtitle2" fontWeight={700} gutterBottom>
-          Periodo (opcional)
+          Periodo
         </Typography>
-        <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap" sx={{ mb: 2 }}>
-          {ATAJOS.map((a) => (
-            <Chip
-              key={a.label}
-              label={a.label}
-              variant="outlined"
-              onClick={() => {
-                setDesde(a.desde());
-                setHasta('');
-              }}
-            />
-          ))}
-        </Stack>
-        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-          <TextField
-            label="Desde"
-            type="date"
-            value={desde}
-            onChange={(e) => setDesde(e.target.value)}
-            InputLabelProps={{ shrink: true }}
-            size="small"
-            fullWidth
-          />
-          <TextField
-            label="Hasta"
-            type="date"
-            value={hasta}
-            onChange={(e) => setHasta(e.target.value)}
-            InputLabelProps={{ shrink: true }}
-            size="small"
-            fullWidth
-          />
-        </Stack>
+        <SelectorPeriodo valor={periodo} onChange={setPeriodo} />
         <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
           Sin fechas, el reporte incluye todo el historial registrado.
         </Typography>
@@ -148,7 +104,7 @@ const ReporteDialog = ({ open, onClose, tipo, sensor }) => {
           variant="contained"
           color="error"
           startIcon={descargando === 'pdf' ? <CircularProgress size={16} color="inherit" /> : <PictureAsPdfIcon />}
-          disabled={Boolean(descargando)}
+          disabled={deshabilitado}
           onClick={() => descargar('pdf')}
         >
           Descargar PDF
@@ -157,7 +113,7 @@ const ReporteDialog = ({ open, onClose, tipo, sensor }) => {
           variant="contained"
           color="success"
           startIcon={descargando === 'xlsx' ? <CircularProgress size={16} color="inherit" /> : <TableViewIcon />}
-          disabled={Boolean(descargando)}
+          disabled={deshabilitado}
           onClick={() => descargar('xlsx')}
         >
           Descargar Excel

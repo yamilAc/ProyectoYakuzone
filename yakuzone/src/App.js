@@ -16,8 +16,6 @@ import Equipos from './Equipos/Equipos';
 import Sidebar from './Sidebar';
 import { isAuthenticated, getUserRole, logout } from './axios/auth';
 import ProtectedRoute from './axios/ProtecteRoute';
-import GraficoSensor from './DatosHistoricos/graficoSensor';
-import HistorialAlertas from './DatosHistoricos/HistorialAlertas';
 import AvisosAlertas from './components/AvisosAlertas';
 import Reporte from './Reporte';
 
@@ -100,14 +98,6 @@ function AppContent() {
               <Route
                 path="/DatosHistoricos"
                 element={<ProtectedRoute element={<DatosHistoricos />} requiredRole="administrador" />}
-              />
-              <Route
-                path="/graficoSensor"
-                element={<ProtectedRoute element={<GraficoSensor />} requiredRole="administrador" />}
-              />
-              <Route
-                path="/HistorialAlertas"
-                element={<ProtectedRoute element={<HistorialAlertas />} requiredRole="administrador" />}
               />
               <Route path="*" element={<Navigate to={isAuth ? '/' : '/login'} replace />} />
             </Routes>

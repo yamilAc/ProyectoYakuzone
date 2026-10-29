@@ -48,12 +48,18 @@ export const textoRango = ({ umbral, unidad }) => {
 // leyenda abajo, título en cada eje con su unidad, líneas rojas punteadas con
 // los límites de la NB 512-04 y las lecturas fuera de rango marcadas con un
 // punto rojo.
-const GraficoParametro = ({ config, lecturas, alto = 220 }) => {
+// Opcionales: refGrafico (recibe la instancia de Chart.js, p. ej. para
+// exportarlo a PDF), formatoTiempo (texto del eje X a partir de la fecha),
+// promedio (cada punto es el promedio de un tramo de lecturas) y
+// altaResolucion (dibuja con más píxeles, para que se vea nítido en un PDF).
+const horaLocal = (fecha) => fecha.toLocaleTimeString();
+
+const GraficoParametro = ({ config, lecturas, alto = 220, refGrafico, formatoTiempo = horaLocal, promedio = false, altaResolucion = false }) => {
   const { key, label, unidad, color, umbral } = config;
   const etiquetaEje = unidad ? `${label} (${unidad})` : label;
   const valores = lecturas.map((l) => (l[key] === null || l[key] === undefined ? null : Number(l[key])));
   const fuera = valores.map((v) => fueraDeRango(v, umbral));
-  const etiquetas = lecturas.map((l) => new Date(l.fecha_hora).toLocaleTimeString());
+  const etiquetas = lecturas.map((l) => formatoTiempo(new Date(l.fecha_hora)));
 
   const lineaLimite = (texto, valor) => ({
     label: texto,
@@ -68,7 +74,7 @@ const GraficoParametro = ({ config, lecturas, alto = 220 }) => {
 
   const datasets = [
     {
-      label: `${label} medido${unidad ? ` (${unidad})` : ''}`,
+      label: `${label} ${promedio ? 'promedio' : 'medido'}${unidad ? ` (${unidad})` : ''}`,
       data: valores,
       borderColor: color,
       backgroundColor: `${color}22`,
@@ -90,6 +96,7 @@ const GraficoParametro = ({ config, lecturas, alto = 220 }) => {
     responsive: true,
     maintainAspectRatio: false,
     animation: { duration: 400 },
+    devicePixelRatio: altaResolucion ? Math.max(window.devicePixelRatio || 1, 2) : undefined,
     interaction: { mode: 'index', intersect: false },
     plugins: {
       legend: { position: 'bottom', labels: { usePointStyle: true, pointStyle: 'line', boxWidth: 28, font: { size: 11 } } },
@@ -105,7 +112,7 @@ const GraficoParametro = ({ config, lecturas, alto = 220 }) => {
     },
     scales: {
       x: {
-        title: { display: true, text: 'Hora de la lectura', color: '#78909C', font: { size: 11 } },
+        title: { display: true, text: formatoTiempo === horaLocal ? 'Hora de la lectura' : 'Fecha y hora', color: '#78909C', font: { size: 11 } },
         ticks: { color: '#888', maxTicksLimit: 6 },
         grid: { display: false },
       },
@@ -126,7 +133,7 @@ const GraficoParametro = ({ config, lecturas, alto = 220 }) => {
   }
   return (
     <div style={{ height: alto }}>
-      <Line data={{ labels: etiquetas, datasets }} options={options} />
+      <Line ref={refGrafico} data={{ labels: etiquetas, datasets }} options={options} />
     </div>
   );
 };

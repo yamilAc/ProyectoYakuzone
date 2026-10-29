@@ -3,8 +3,14 @@ const router = express.Router();
 const db = require('../db');
 const { authenticate, authorize } = require('../middleware/auth');
 const { FECHA_VALIDA } = require('../services/alertasService');
-const { datosReporteAlertas, datosReporteGeneral } = require('../services/reportesService');
+const {
+  datosReporteAlertas,
+  datosReporteGeneral,
+  datosReporteAlertasGeneral,
+  listarLecturas,
+} = require('../services/reportesService');
 const reporteAlertasSensor = require('../reportes/alertasSensor');
+const reporteAlertasGeneral = require('../reportes/alertasGeneral');
 const reporteGeneral = require('../reportes/general');
 
 // Reportes descargables de Datos Históricos, en PDF o Excel (solo administradores).
@@ -58,7 +64,29 @@ router.get('/alertas', async (req, res) => {
   }
 });
 
-// GET /api/reportes/general?desde=&hasta=&formato=pdf|xlsx
+// GET /api/reportes/alertas-general?desde=&hasta=&formato=pdf|xlsx - todas
+// las alertas del sistema con los datos del sensor y del propietario.
+router.get('/alertas-general', async (req, res) => {
+  const { formato, desde, hasta, error } = leerParametros(req.query);
+  if (error) {
+    return res.status(400).json({ error });
+  }
+  try {
+    const datos = await datosReporteAlertasGeneral({ desde, hasta });
+    const opciones = {
+      nombreArchivo: `reporte_general_alertas_${hoy()}.${formato}`,
+      generadoPor: await nombreUsuario(req.user.id),
+    };
+    if (formato === 'pdf') reporteAlertasGeneral.pdf(res, datos, opciones);
+    else await reporteAlertasGeneral.excel(res, datos, opciones);
+  } catch (err) {
+    console.error('[Reportes] Error en el reporte general de alertas:', err.message);
+    if (!res.headersSent) res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/reportes/general?desde=&hasta=&formato=pdf|xlsx - reporte de todo
+// el sistema (en Excel incluye además todas las lecturas del periodo).
 router.get('/general', async (req, res) => {
   const { formato, desde, hasta, error } = leerParametros(req.query);
   if (error) {
@@ -66,6 +94,7 @@ router.get('/general', async (req, res) => {
   }
   try {
     const datos = await datosReporteGeneral({ desde, hasta });
+    if (formato === 'xlsx') datos.lecturasDetalle = await listarLecturas({ desde, hasta });
     const opciones = {
       nombreArchivo: `reporte_general_${hoy()}.${formato}`,
       generadoPor: await nombreUsuario(req.user.id),
