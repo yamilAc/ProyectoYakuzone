@@ -1,12 +1,11 @@
 import React from 'react';
-import { Paper, Typography, Chip, Stack, Divider } from '@mui/material';
+import { Paper, Typography, Chip, Divider } from '@mui/material';
 import SensorsOffIcon from '@mui/icons-material/SensorsOff';
 import PlaceIcon from '@mui/icons-material/Place';
 import PersonIcon from '@mui/icons-material/Person';
 import PhoneIcon from '@mui/icons-material/Phone';
 import HomeIcon from '@mui/icons-material/Home';
 import { motion } from 'framer-motion';
-import { evaluarEstadoSensor, COLORES_ESTADO, ETIQUETAS_ESTADO } from '../utils/estadoSensor';
 
 const Linea = ({ icon: Icon, children, color = 'text.secondary' }) => (
   <Typography variant="body2" color={color} sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.6 }}>
@@ -16,12 +15,10 @@ const Linea = ({ icon: Icon, children, color = 'text.secondary' }) => (
 );
 
 // Tarjeta de un sensor en la "Red de sensores" del Dashboard: datos del
-// sensor (número, estado, ubicación) y del propietario de la vivienda.
+// sensor (número, ubicación) y del propietario de la vivienda.
 // seleccionado / onClick: al tocarla se elige ese sensor en "Actividad en
 // tiempo real" y en el mapa.
-export const SensorMiniCardReal = ({ index, sensor, ultima, seleccionado = false, onClick }) => {
-  const estado = evaluarEstadoSensor(ultima);
-  const color = estado ? COLORES_ESTADO[estado] : '#9e9e9e';
+export const SensorMiniCardReal = ({ index, sensor, seleccionado = false, onClick }) => {
   const direccion = [sensor.propietario_direccion, sensor.propietario_nro_casa && `Casa Nº ${sensor.propietario_nro_casa}`]
     .filter(Boolean)
     .join(' · ');
@@ -45,36 +42,16 @@ export const SensorMiniCardReal = ({ index, sensor, ultima, seleccionado = false
           flexDirection: 'column',
           gap: 0.6,
           borderTop: '3px solid',
-          borderColor: color,
+          borderColor: 'primary.main',
           cursor: onClick ? 'pointer' : 'default',
           outline: seleccionado ? '2px solid' : 'none',
           outlineColor: 'primary.main',
           transition: 'box-shadow 0.2s ease',
         }}
       >
-        <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
-          <Typography variant="subtitle1" fontWeight={700}>
-            {sensor.n_serie}
-          </Typography>
-          <Chip
-            label={estado ? ETIQUETAS_ESTADO[estado] : 'Sin datos'}
-            size="small"
-            sx={{
-              bgcolor: `${color}18`,
-              color,
-              fontWeight: 700,
-              '&::before': {
-                content: '""',
-                display: 'inline-block',
-                width: 7,
-                height: 7,
-                borderRadius: '50%',
-                bgcolor: color,
-                mr: 0.6,
-              },
-            }}
-          />
-        </Stack>
+        <Typography variant="subtitle1" fontWeight={700}>
+          {sensor.n_serie}
+        </Typography>
 
         <Linea icon={PlaceIcon}>{sensor.ubicacion || 'Sin ubicación registrada'}</Linea>
         {sensor.descripcion && (
