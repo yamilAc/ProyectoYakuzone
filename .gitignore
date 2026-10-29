@@ -11,5 +11,7 @@
 node_modules/
 build/
 .env
+# Fotos de evidencia subidas por los equipos de mitigación (datos, no código)
+/node/uploads/
 *.log
 ~$*

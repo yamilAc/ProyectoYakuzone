@@ -44,6 +44,7 @@ async function obtenerDetalleAlerta(id) {
   if (r.equipo_id) {
     [miembros] = await db.query('SELECT nombre, telefono FROM miembros_equipo WHERE equipo_id = ? ORDER BY id', [r.equipo_id]);
   }
+  const [fotos] = await db.query('SELECT tipo FROM fotos_mitigacion WHERE alerta_id = ?', [id]);
 
   return {
     alerta: {
@@ -65,6 +66,9 @@ async function obtenerDetalleAlerta(id) {
       mitigado_por: nombreCompleto(r.mitigado_por_nombre, r.mitigado_por_apellido),
       mitigado_en: r.mitigado_en,
       observacion_mitigacion: r.observacion_mitigacion,
+      // Tipos de foto de evidencia subidos ('equipo', 'casa', 'trabajo');
+      // cada una se descarga aparte desde GET /api/alertas/:id/fotos/:tipo.
+      fotos: fotos.map((f) => f.tipo),
     },
     sensor: {
       id: r.sensor_id,
@@ -118,4 +122,38 @@ async function historialDelSensor(sensorId, excluirAlertaId) {
   return { pendientes, mitigadas };
 }
 
-module.exports = { equiposDelJefe, obtenerDetalleAlerta, historialDelSensor };
+const ESTADOS = ['pendiente', 'asignada', 'mitigada'];
+const PARAMETROS = ['ph', 'turbidez', 'conductividad'];
+const FECHA_VALIDA = /^\d{4}-\d{2}-\d{2}$/;
+
+// Condiciones SQL (sobre el alias `a` de alertas) para los filtros del
+// historial de alertas y de los reportes: sensor, estado, parámetro y rango
+// de fechas (YYYY-MM-DD, ambos extremos incluidos). Los valores no válidos
+// se ignoran.
+function construirFiltrosAlertas({ sensor_id, estado, parametro, desde, hasta }) {
+  const condiciones = [];
+  const params = [];
+  if (Number(sensor_id)) {
+    condiciones.push('a.sensor_id = ?');
+    params.push(Number(sensor_id));
+  }
+  if (ESTADOS.includes(estado)) {
+    condiciones.push('a.estado = ?');
+    params.push(estado);
+  }
+  if (PARAMETROS.includes(parametro)) {
+    condiciones.push('a.parametro = ?');
+    params.push(parametro);
+  }
+  if (FECHA_VALIDA.test(desde || '')) {
+    condiciones.push('a.fecha_hora >= ?');
+    params.push(`${desde} 00:00:00`);
+  }
+  if (FECHA_VALIDA.test(hasta || '')) {
+    condiciones.push('a.fecha_hora <= ?');
+    params.push(`${hasta} 23:59:59`);
+  }
+  return { condiciones, params };
+}
+
+module.exports = { equiposDelJefe, obtenerDetalleAlerta, historialDelSensor, construirFiltrosAlertas, FECHA_VALIDA };

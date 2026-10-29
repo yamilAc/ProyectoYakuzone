@@ -14,7 +14,9 @@ const sparklineOptions = {
   scales: { x: { display: false }, y: { display: false } },
 };
 
-export const SensorMiniCardReal = ({ index, sensor, lecturas, ultima }) => {
+// seleccionado / onClick: al tocar la tarjeta se elige ese sensor en
+// "Actividad en tiempo real" y en el mapa del Dashboard.
+export const SensorMiniCardReal = ({ index, sensor, lecturas, ultima, seleccionado = false, onClick }) => {
   const lecturasDelSensor = lecturas.filter((l) => l.sensor_id === sensor.id);
   const estado = evaluarEstadoSensor(ultima);
   const color = estado ? COLORES_ESTADO[estado] : '#9e9e9e';
@@ -42,7 +44,20 @@ export const SensorMiniCardReal = ({ index, sensor, lecturas, ultima }) => {
       whileHover={{ y: -4 }}
       style={{ height: '100%' }}
     >
-      <Paper elevation={2} sx={{ p: 2, height: '100%', borderTop: '3px solid', borderColor: color }}>
+      <Paper
+        elevation={seleccionado ? 6 : 2}
+        onClick={onClick}
+        sx={{
+          p: 2,
+          height: '100%',
+          borderTop: '3px solid',
+          borderColor: color,
+          cursor: onClick ? 'pointer' : 'default',
+          outline: seleccionado ? '2px solid' : 'none',
+          outlineColor: 'primary.main',
+          transition: 'box-shadow 0.2s ease',
+        }}
+      >
         <Stack direction="row" justifyContent="space-between" alignItems="flex-start" sx={{ mb: 1 }}>
           <Box>
             <Typography variant="subtitle1" fontWeight={700}>

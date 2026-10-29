@@ -5,9 +5,14 @@ import WaterDropIcon from '@mui/icons-material/WaterDrop';
 import ShowChartIcon from '@mui/icons-material/ShowChart';
 import RoomIcon from '@mui/icons-material/Room';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
+import NotificationsIcon from '@mui/icons-material/Notifications';
 import { motion } from 'framer-motion';
+import { getUserRole } from '../axios/auth';
 
 const HomeHero = () => {
+  // El jefe de un equipo de mitigación no usa Lecturas: su acceso principal
+  // son las alertas asignadas a su equipo.
+  const esJefe = getUserRole() === 'equipo_mitigacion';
   return (
     <Box
       sx={{
@@ -46,10 +51,10 @@ const HomeHero = () => {
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} justifyContent="center" sx={{ mt: 4 }}>
             <Button
               component={Link}
-              to="/Lectura"
+              to={esJefe ? '/Alerta' : '/Lectura'}
               variant="contained"
               size="large"
-              startIcon={<ShowChartIcon />}
+              startIcon={esJefe ? <NotificationsIcon /> : <ShowChartIcon />}
               sx={{
                 bgcolor: '#fff',
                 color: 'primary.dark',
@@ -58,7 +63,7 @@ const HomeHero = () => {
                 '&:hover': { bgcolor: '#f0f7fa' },
               }}
             >
-              Ver Lecturas en Vivo
+              {esJefe ? 'Ver mis alertas asignadas' : 'Ver Lecturas en Vivo'}
             </Button>
             <Button
               component={Link}

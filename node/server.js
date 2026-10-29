@@ -11,6 +11,7 @@ const sensoresRoutes = require('./routes/sensores');
 const lecturasRoutes = require('./routes/lecturas');
 const alertasRoutes = require('./routes/alertas');
 const equiposRoutes = require('./routes/equipos');
+const reportesRoutes = require('./routes/reportes');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -27,6 +28,7 @@ app.use('/api/sensores', sensoresRoutes);
 app.use('/api/lecturas', lecturasRoutes);
 app.use('/api/alertas', alertasRoutes);
 app.use('/api/equipos', equiposRoutes);
+app.use('/api/reportes', reportesRoutes);
 
 app.use((req, res) => {
   res.status(404).json({ error: 'Ruta no encontrada' });

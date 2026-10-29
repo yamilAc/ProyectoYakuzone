@@ -1,87 +1,31 @@
 import React, { useEffect, useState } from 'react';
 import axios from '../axios/axiosConfig';
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  Title,
-  Tooltip,
-  Legend,
-  Filler,
-} from 'chart.js';
-import { Line } from 'react-chartjs-2';
-import { Container, Typography, Box, CircularProgress, Button, Paper, Chip, Stack, Grid, FormControl, InputLabel, Select, MenuItem } from '@mui/material';
-import ThermostatIcon from '@mui/icons-material/Thermostat';
-import OpacityIcon from '@mui/icons-material/Opacity';
-import ScienceIcon from '@mui/icons-material/Science';
-import BoltIcon from '@mui/icons-material/Bolt';
+import { Container, Typography, Box, CircularProgress, Paper, Chip, Stack, Grid, FormControl, InputLabel, Select, MenuItem } from '@mui/material';
 import ShowChartIcon from '@mui/icons-material/ShowChart';
+import { motion } from 'framer-motion';
 import PageHeader from '../components/PageHeader';
-import { motion, AnimatePresence } from 'framer-motion';
-import { NotificationContainer, NotificationManager } from 'react-notifications';
-import 'react-notifications/lib/notifications.css';
+import GraficoParametro, { PARAMETROS_GRAFICO, conUnidad, fueraDeRango, textoRango } from '../components/GraficoParametro';
 
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler);
-
-// Un panel por parámetro, cada uno con su propia escala, color y umbral
-// (mismo umbral que usa el backend en utils/thresholds.js, según la NB 512-04).
-// La temperatura no tiene umbral normado, así que se muestra sin evaluar.
-const PARAMETROS = [
-  { key: 'valor_temperatura', label: 'Temperatura', unidad: '°C', color: '#0E7C9B', icon: ThermostatIcon, umbral: null },
-  { key: 'valor_turbidez', label: 'Turbidez', unidad: ' NTU', color: '#9C27B0', icon: OpacityIcon, umbral: { min: 0, max: 5 } },
-  { key: 'valor_ph', label: 'pH', unidad: '', color: '#ED6C02', icon: ScienceIcon, umbral: { min: 6.5, max: 9.0 } },
-  { key: 'valor_conductividad', label: 'Conductividad', unidad: ' µS/cm', color: '#009688', icon: BoltIcon, umbral: { min: 0, max: 1500 } },
-];
+const LECTURAS_POR_GRAFICO = 100;
 
 const cardVariants = {
   hidden: { opacity: 0, y: 24 },
   show: (i) => ({ opacity: 1, y: 0, transition: { duration: 0.45, delay: i * 0.08, ease: 'easeOut' } }),
 };
 
+// Un panel por parámetro, cada uno con su propia escala, color y límites de
+// la NB 512-04 (ver components/GraficoParametro.js).
 const ParametroCard = ({ index, config, lecturas }) => {
-  const { key, label, unidad, color, icon: Icon, umbral } = config;
-  const valores = lecturas.map((l) => l[key]);
-  const actual = valores.length > 0 ? valores[valores.length - 1] : null;
-
-  let estado = null;
-  if (umbral && actual !== null && actual !== undefined && !Number.isNaN(Number(actual))) {
-    estado = Number(actual) < umbral.min || Number(actual) > umbral.max ? 'error' : 'success';
-  }
-
-  const data = {
-    labels: lecturas.map((l) => new Date(l.fecha_hora).toLocaleTimeString()),
-    datasets: [
-      {
-        label,
-        data: valores,
-        borderColor: color,
-        backgroundColor: `${color}33`,
-        fill: true,
-        tension: 0.35,
-        pointRadius: 0,
-        pointHoverRadius: 4,
-      },
-    ],
-  };
-
-  const options = {
-    responsive: true,
-    maintainAspectRatio: false,
-    animation: { duration: 600 },
-    plugins: { legend: { display: false }, tooltip: { mode: 'index', intersect: false } },
-    scales: {
-      x: { ticks: { color: '#888', maxTicksLimit: 6 }, grid: { display: false } },
-      y: { ticks: { color: '#888' }, grid: { color: '#eef2f4' } },
-    },
-  };
+  const { label, unidad, color, icon: Icon, umbral } = config;
+  const ultima = lecturas.length > 0 ? lecturas[lecturas.length - 1][config.key] : null;
+  const hayValor = ultima !== null && ultima !== undefined;
+  const fuera = fueraDeRango(ultima, umbral);
 
   return (
     <Grid item xs={12} md={6}>
-      <motion.div custom={index} initial="hidden" animate="show" variants={cardVariants} whileHover={{ y: -4 }}>
+      <motion.div custom={index} initial="hidden" animate="show" variants={cardVariants}>
         <Paper elevation={2} sx={{ p: 2.5, height: '100%', transition: 'box-shadow 0.2s ease', '&:hover': { boxShadow: 6 } }}>
-          <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.5 }}>
+          <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 0.5 }}>
             <Stack direction="row" spacing={1.5} alignItems="center">
               <Box sx={{ bgcolor: `${color}22`, color, borderRadius: '50%', p: 1, display: 'flex' }}>
                 <Icon fontSize="small" />
@@ -90,18 +34,21 @@ const ParametroCard = ({ index, config, lecturas }) => {
                 {label}
               </Typography>
             </Stack>
-            {actual !== null && actual !== undefined && (
+            {hayValor && (
               <Chip
-                label={`${Number(actual).toFixed(2)}${unidad}`}
-                color={estado === 'error' ? 'error' : estado === 'success' ? 'success' : 'default'}
+                label={`Actual: ${conUnidad(ultima, unidad)}`}
+                color={!umbral ? 'default' : fuera ? 'error' : 'success'}
                 size="small"
                 sx={{ fontWeight: 600 }}
               />
             )}
           </Stack>
-          <Box sx={{ height: 200 }}>
-            <Line data={data} options={options} />
-          </Box>
+          <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1.5 }}>
+            {umbral
+              ? `Rango aceptable (NB 512-04): ${textoRango(config)} · los puntos rojos son lecturas fuera de rango`
+              : 'La NB 512-04 no fija un límite para este parámetro; se registra como referencia'}
+          </Typography>
+          <GraficoParametro config={config} lecturas={lecturas} alto={240} />
         </Paper>
       </motion.div>
     </Grid>
@@ -109,70 +56,56 @@ const ParametroCard = ({ index, config, lecturas }) => {
 };
 
 const Lectura = () => {
-  const [lecturas, setLecturas] = useState([]);
   const [sensores, setSensores] = useState([]);
   const [sensorId, setSensorId] = useState('');
+  const [lecturas, setLecturas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [alertas, setAlertas] = useState([]);
-  const [, setAlertasVistasIds] = useState(new Set());
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [responseSensores, responseLecturas] = await Promise.all([
-          axios.get('/sensores'),
-          axios.get('/lecturas'),
-        ]);
-        setSensores(responseSensores.data);
-        setSensorId((actual) => actual || (responseSensores.data[0] && responseSensores.data[0].id) || '');
-        setLecturas(responseLecturas.data);
-
-        // Las alertas ya vienen calculadas por el backend según la NB 512-04
-        // (ver node/utils/thresholds.js); aquí solo se muestran.
-        const responseAlertas = await axios.get('/alertas');
-        setAlertas(responseAlertas.data);
-
-        setAlertasVistasIds((vistasPrevias) => {
-          const nuevas = responseAlertas.data.filter((a) => !vistasPrevias.has(a.id));
-          nuevas.forEach((a) => {
-            NotificationManager.warning(a.descripcion, `Alerta: ${a.numero_serie}`);
-          });
-          return new Set(responseAlertas.data.map((a) => a.id));
-        });
-      } catch (error) {
-        console.error('Error fetching data:', error);
-      } finally {
+    axios
+      .get('/sensores')
+      .then((res) => {
+        setSensores(res.data);
+        setSensorId((actual) => actual || (res.data[0] && res.data[0].id) || '');
+        if (res.data.length === 0) setLoading(false);
+      })
+      .catch((error) => {
+        console.error('Error al obtener los sensores:', error);
         setLoading(false);
-      }
-    };
-
-    fetchData();
-    const interval = setInterval(fetchData, 10000); // Actualiza cada 10 segundos
-    return () => clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+      });
   }, []);
 
+  // Con varios sensores, las gráficas muestran la serie de tiempo de UN
+  // sensor a la vez (mezclar sensores en la misma línea no tendría sentido).
   useEffect(() => {
-    const updateCurrentTime = () => setCurrentTime(new Date());
-    const timeInterval = setInterval(updateCurrentTime, 1000);
+    if (!sensorId) return undefined;
+    let activo = true;
+    const fetchLecturas = async () => {
+      try {
+        const res = await axios.get('/lecturas', { params: { sensor_id: sensorId, limite: LECTURAS_POR_GRAFICO } });
+        if (activo) setLecturas(res.data);
+      } catch (error) {
+        console.error('Error al obtener las lecturas:', error);
+      } finally {
+        if (activo) setLoading(false);
+      }
+    };
+    fetchLecturas();
+    const interval = setInterval(fetchLecturas, 10000); // Actualiza cada 10 segundos
+    return () => {
+      activo = false;
+      clearInterval(interval);
+    };
+  }, [sensorId]);
+
+  useEffect(() => {
+    const timeInterval = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timeInterval);
   }, []);
 
-  const handleNotificationClick = (alerta) => {
-    NotificationManager.info('Se ha clickeado en la notificación', '', 2000);
-    console.log('Alerta clickeada:', alerta);
-  };
-
-  // Con varios sensores activos, las gráficas deben mostrar la serie de
-  // tiempo de UN sensor a la vez — mezclar lecturas de sensores distintos
-  // en la misma línea da un trazo sin sentido (saltos entre valores de
-  // nodos diferentes en vez de la tendencia real de uno solo).
-  const lecturasDelSensor = sensorId ? lecturas.filter((l) => l.sensor_id === sensorId) : lecturas;
-
   return (
     <>
-      <NotificationContainer />
       <PageHeader
         icon={ShowChartIcon}
         title="Monitor de Calidad del Agua"
@@ -206,78 +139,40 @@ const Lectura = () => {
       />
 
       <Container maxWidth="lg" sx={{ pb: 4 }}>
-      {loading ? (
-        <Box display="flex" justifyContent="center" alignItems="center" minHeight="300px">
-          <CircularProgress />
-        </Box>
-      ) : (
-        <Box>
-          {sensores.length > 1 && (
-            <FormControl size="small" sx={{ minWidth: 260, mb: 3 }}>
-              <InputLabel id="lectura-sensor-label">Sensor</InputLabel>
-              <Select
-                labelId="lectura-sensor-label"
-                label="Sensor"
-                value={sensorId}
-                onChange={(e) => setSensorId(e.target.value)}
-              >
-                {sensores.map((s) => (
-                  <MenuItem key={s.id} value={s.id}>
-                    {s.n_serie} — {s.descripcion || s.ubicacion}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          )}
+        {loading ? (
+          <Box display="flex" justifyContent="center" alignItems="center" minHeight="300px">
+            <CircularProgress />
+          </Box>
+        ) : sensores.length === 0 ? (
+          <Typography color="text.secondary">Todavía no hay sensores registrados.</Typography>
+        ) : (
+          <Box>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems={{ sm: 'center' }} sx={{ mb: 3 }}>
+              <FormControl size="small" sx={{ minWidth: 280 }}>
+                <InputLabel id="lectura-sensor-label">Sensor</InputLabel>
+                <Select labelId="lectura-sensor-label" label="Sensor" value={sensorId} onChange={(e) => setSensorId(e.target.value)}>
+                  {sensores.map((s) => (
+                    <MenuItem key={s.id} value={s.id}>
+                      {s.n_serie} — {s.descripcion || s.ubicacion}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              <Typography variant="body2" color="text.secondary">
+                Últimas {lecturas.length} lecturas del sensor; se actualizan cada 10 segundos.
+              </Typography>
+            </Stack>
 
-          <Grid container spacing={3} sx={{ mb: 4 }}>
-            {PARAMETROS.map((config, index) => (
-              <ParametroCard key={config.key} index={index} config={config} lecturas={lecturasDelSensor} />
-            ))}
-          </Grid>
-
-          <Typography variant="h6" fontWeight={600} gutterBottom>
-            Notificaciones
-          </Typography>
-          {alertas.length === 0 && (
-            <Typography variant="body2" color="text.secondary">
-              Sin alertas activas.
-            </Typography>
-          )}
-          <Stack spacing={2}>
-            <AnimatePresence>
-              {alertas.map((alerta, index) => (
-                <motion.div
-                  key={alerta.id}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: 20 }}
-                  transition={{ duration: 0.3, delay: index * 0.04 }}
-                >
-                  <Paper elevation={1} sx={{ p: 2, borderLeft: '4px solid', borderColor: 'error.main' }}>
-                    <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 0.5 }}>
-                      <Typography variant="subtitle1" fontWeight={600}>
-                        Sensor {alerta.numero_serie} — {alerta.tipo_alerta}
-                      </Typography>
-                    </Stack>
-                    <Typography variant="body2" color="text.secondary">
-                      Descripción: {alerta.descripcion}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                      Fecha y Hora: {new Date(alerta.fecha_hora).toLocaleString()}
-                    </Typography>
-                    <Button onClick={() => handleNotificationClick(alerta)} variant="contained" size="small">
-                      Ver detalles
-                    </Button>
-                  </Paper>
-                </motion.div>
+            <Grid container spacing={3}>
+              {PARAMETROS_GRAFICO.map((config, index) => (
+                <ParametroCard key={config.key} index={index} config={config} lecturas={lecturas} />
               ))}
-            </AnimatePresence>
-          </Stack>
-        </Box>
-      )}
+            </Grid>
+          </Box>
+        )}
       </Container>
     </>
   );
 };
+
 export default Lectura;

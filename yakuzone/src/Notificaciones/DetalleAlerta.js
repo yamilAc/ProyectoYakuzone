@@ -47,6 +47,10 @@ import axios from '../axios/axiosConfig';
 import { getUserRole } from '../axios/auth';
 import { crearIconoEstado } from '../utils/estadoSensor';
 import { ESTADOS_ALERTA, textoParametro, textoValor, formatearFecha } from '../utils/alertas';
+import { comprimirImagen } from '../utils/imagenes';
+import { SelectorFotos, FotosEvidencia, TIPOS_FOTO } from './FotosMitigacion';
+
+const SIN_FOTOS = { equipo: null, casa: null, trabajo: null };
 
 // Dentro de un Dialog el mapa se crea mientras el diálogo todavía se está
 // animando y Leaflet calcula mal su tamaño (quedan mosaicos grises); se
@@ -96,14 +100,15 @@ const telefonoLink = (telefono) => (telefono ? <Link href={`tel:${telefono.repla
 
 // Ventana de detalle de una alerta: datos del sensor y su ubicación,
 // propietario de la vivienda, sugerencia de mitigación, asignación a un
-// equipo (administrador y empleado), cierre de la alerta (jefe del equipo o
-// administrador) e historial de alertas pendientes y mitigadas del sensor.
+// equipo (administrador y empleado), cierre de la alerta con 3 fotos de
+// evidencia (solo el jefe del equipo, en su pantalla) e historial de alertas
+// pendientes y mitigadas del sensor.
 const DetalleAlerta = ({ alertaId, onClose, onCambio }) => {
   const theme = useTheme();
   const pantallaChica = useMediaQuery(theme.breakpoints.down('sm'));
   const rol = getUserRole();
   const puedeAsignar = rol === 'administrador' || rol === 'empleado';
-  const puedeMitigar = rol === 'administrador' || rol === 'equipo_mitigacion';
+  const puedeMitigar = rol === 'equipo_mitigacion';
 
   // Alerta que se está mostrando: al abrir una del historial del sensor se
   // apila la anterior para poder volver.
@@ -118,6 +123,7 @@ const DetalleAlerta = ({ alertaId, onClose, onCambio }) => {
   const [equipoId, setEquipoId] = useState('');
   const [instrucciones, setInstrucciones] = useState('');
   const [observacion, setObservacion] = useState('');
+  const [fotos, setFotos] = useState(SIN_FOTOS);
   const [guardando, setGuardando] = useState(false);
   const [mensaje, setMensaje] = useState(null); // { severity, texto }
 
@@ -145,6 +151,7 @@ const DetalleAlerta = ({ alertaId, onClose, onCambio }) => {
     if (!idActual) return;
     setInstrucciones('');
     setObservacion('');
+    setFotos(SIN_FOTOS);
     setMensaje(null);
     setTabHistorial(0);
     cargarDetalle(idActual);
@@ -197,9 +204,15 @@ const DetalleAlerta = ({ alertaId, onClose, onCambio }) => {
     setGuardando(true);
     setMensaje(null);
     try {
-      await axios.put(`/alertas/${idActual}/mitigada`, { observacion });
-      setMensaje({ severity: 'success', texto: 'La alerta quedó registrada como mitigada.' });
+      const formulario = new FormData();
+      formulario.append('observacion', observacion);
+      for (const { tipo } of TIPOS_FOTO) {
+        formulario.append(tipo, await comprimirImagen(fotos[tipo]));
+      }
+      await axios.put(`/alertas/${idActual}/mitigada`, formulario);
+      setMensaje({ severity: 'success', texto: 'La alerta quedó registrada como mitigada, con sus 3 fotos de evidencia.' });
       setObservacion('');
+      setFotos(SIN_FOTOS);
       await cargarDetalle(idActual);
       onCambio && onCambio();
     } catch (err) {
@@ -400,6 +413,15 @@ const DetalleAlerta = ({ alertaId, onClose, onCambio }) => {
                       <>
                         {(equipo || puedeAsignar) && <Divider sx={{ my: 2 }} />}
                         <Stack spacing={1.5}>
+                          <Box>
+                            <Typography variant="body2" fontWeight={600}>
+                              Fotos de evidencia (las 3 son obligatorias)
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              Toma o elige una foto del equipo en el lugar, de la casa y del trabajo realizado.
+                            </Typography>
+                          </Box>
+                          <SelectorFotos fotos={fotos} onChange={setFotos} disabled={guardando} />
                           <TextField
                             label="¿Qué se hizo para mitigar la alerta?"
                             value={observacion}
@@ -415,7 +437,7 @@ const DetalleAlerta = ({ alertaId, onClose, onCambio }) => {
                               variant="contained"
                               color="success"
                               startIcon={guardando ? <CircularProgress size={16} color="inherit" /> : <TaskAltIcon />}
-                              disabled={observacion.trim().length < 5 || guardando}
+                              disabled={observacion.trim().length < 5 || !TIPOS_FOTO.every(({ tipo }) => fotos[tipo]) || guardando}
                               onClick={handleMitigar}
                             >
                               Marcar como mitigada
@@ -434,6 +456,14 @@ const DetalleAlerta = ({ alertaId, onClose, onCambio }) => {
                           </Typography>
                         )}
                       </Alert>
+                    )}
+                    {alerta.estado === 'mitigada' && alerta.fotos?.length > 0 && (
+                      <Box sx={{ mt: 1.5 }}>
+                        <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.8 }}>
+                          Fotos de evidencia (toca una para ampliarla)
+                        </Typography>
+                        <FotosEvidencia alertaId={alerta.id} tipos={alerta.fotos} />
+                      </Box>
                     )}
                   </Seccion>
                 </Stack>

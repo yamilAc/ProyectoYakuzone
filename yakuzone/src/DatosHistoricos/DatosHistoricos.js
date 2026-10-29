@@ -15,15 +15,24 @@ import {
   Button,
   Tooltip,
   Typography,
+  Stack,
 } from '@mui/material';
 import HistoryIcon from '@mui/icons-material/History';
+import ListAltIcon from '@mui/icons-material/ListAlt';
+import AssessmentIcon from '@mui/icons-material/Assessment';
+import SummarizeIcon from '@mui/icons-material/Summarize';
 import { motion } from 'framer-motion';
 import PageHeader from '../components/PageHeader';
+import ReporteDialog from '../components/ReporteDialog';
+
+const estiloBotonEncabezado = { bgcolor: 'rgba(255,255,255,0.18)', '&:hover': { bgcolor: 'rgba(255,255,255,0.28)' } };
 
 const DatosHistoricos = () => {
   const [loading, setLoading] = useState(false);
   const [sensores, setSensores] = useState([]);
   const [error, setError] = useState(null);
+  // { tipo: 'general' | 'alertas', sensor } del reporte que se va a descargar
+  const [reporte, setReporte] = useState(null);
   const navigate = useNavigate();
 
   const fetchSensores = async () => {
@@ -54,6 +63,16 @@ const DatosHistoricos = () => {
         icon={HistoryIcon}
         title="Datos Históricos de Sensores"
         subtitle="Consulta el registro completo por sensor y rango de fechas"
+        action={
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+            <Button variant="contained" startIcon={<ListAltIcon />} onClick={() => navigate('/HistorialAlertas')} sx={estiloBotonEncabezado}>
+              Historial de alertas
+            </Button>
+            <Button variant="contained" startIcon={<AssessmentIcon />} onClick={() => setReporte({ tipo: 'general' })} sx={estiloBotonEncabezado}>
+              Reporte general
+            </Button>
+          </Stack>
+        }
       />
       <Container sx={{ pb: 4 }}>
         {loading ? (
@@ -80,11 +99,23 @@ const DatosHistoricos = () => {
                     <TableCell>{sensor.ubicacion}</TableCell>
                     <TableCell>{sensor.descripcion}</TableCell>
                     <TableCell>
-                      <Tooltip title={`Verificar sensor: ${sensor.n_serie}`} arrow>
-                        <Button variant="contained" size="small" onClick={() => handleVerificar(sensor.id)}>
-                          Verificar
-                        </Button>
-                      </Tooltip>
+                      <Stack direction="row" spacing={1} justifyContent="flex-end" flexWrap="wrap" useFlexGap>
+                        <Tooltip title={`Verificar sensor: ${sensor.n_serie}`} arrow>
+                          <Button variant="contained" size="small" onClick={() => handleVerificar(sensor.id)}>
+                            Verificar
+                          </Button>
+                        </Tooltip>
+                        <Tooltip title={`Descargar el reporte de alertas de ${sensor.n_serie} (PDF o Excel)`} arrow>
+                          <Button
+                            variant="outlined"
+                            size="small"
+                            startIcon={<SummarizeIcon />}
+                            onClick={() => setReporte({ tipo: 'alertas', sensor })}
+                          >
+                            Reporte de alertas
+                          </Button>
+                        </Tooltip>
+                      </Stack>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -93,6 +124,8 @@ const DatosHistoricos = () => {
           </TableContainer>
         )}
       </Container>
+
+      <ReporteDialog open={Boolean(reporte)} onClose={() => setReporte(null)} tipo={reporte?.tipo} sensor={reporte?.sensor} />
     </>
   );
 };
