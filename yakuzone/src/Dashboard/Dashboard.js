@@ -323,7 +323,6 @@ const Dashboard = () => {
                     <SensorMiniCardReal
                       index={index}
                       sensor={sensor}
-                      ultima={ultimasPorSensor[sensor.id]}
                       seleccionado={sensor.id === seleccionId}
                       onClick={() => elegirSensor(sensor.id, true)}
                     />
