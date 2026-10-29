@@ -1,39 +1,30 @@
 import React from 'react';
-import { Box, Paper, Typography, Chip, Stack } from '@mui/material';
-import { Line } from 'react-chartjs-2';
+import { Paper, Typography, Chip, Stack, Divider } from '@mui/material';
 import SensorsOffIcon from '@mui/icons-material/SensorsOff';
+import PlaceIcon from '@mui/icons-material/Place';
+import PersonIcon from '@mui/icons-material/Person';
+import PhoneIcon from '@mui/icons-material/Phone';
+import HomeIcon from '@mui/icons-material/Home';
 import { motion } from 'framer-motion';
 import { evaluarEstadoSensor, COLORES_ESTADO, ETIQUETAS_ESTADO } from '../utils/estadoSensor';
 
-const sparklineOptions = {
-  responsive: true,
-  maintainAspectRatio: false,
-  animation: { duration: 500 },
-  plugins: { legend: { display: false }, tooltip: { enabled: false } },
-  elements: { point: { radius: 0 } },
-  scales: { x: { display: false }, y: { display: false } },
-};
+const Linea = ({ icon: Icon, children, color = 'text.secondary' }) => (
+  <Typography variant="body2" color={color} sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.6 }}>
+    <Icon sx={{ fontSize: 16, mt: '2px', flexShrink: 0 }} />
+    <span>{children}</span>
+  </Typography>
+);
 
-// seleccionado / onClick: al tocar la tarjeta se elige ese sensor en
-// "Actividad en tiempo real" y en el mapa del Dashboard.
-export const SensorMiniCardReal = ({ index, sensor, lecturas, ultima, seleccionado = false, onClick }) => {
-  const lecturasDelSensor = lecturas.filter((l) => l.sensor_id === sensor.id);
+// Tarjeta de un sensor en la "Red de sensores" del Dashboard: datos del
+// sensor (número, estado, ubicación) y del propietario de la vivienda.
+// seleccionado / onClick: al tocarla se elige ese sensor en "Actividad en
+// tiempo real" y en el mapa.
+export const SensorMiniCardReal = ({ index, sensor, ultima, seleccionado = false, onClick }) => {
   const estado = evaluarEstadoSensor(ultima);
   const color = estado ? COLORES_ESTADO[estado] : '#9e9e9e';
-
-  const sparkData = {
-    labels: lecturasDelSensor.map((l) => l.fecha_hora),
-    datasets: [
-      {
-        data: lecturasDelSensor.map((l) => l.valor_temperatura),
-        borderColor: '#0E7C9B',
-        backgroundColor: 'rgba(14,124,155,0.15)',
-        fill: true,
-        tension: 0.35,
-        borderWidth: 2,
-      },
-    ],
-  };
+  const direccion = [sensor.propietario_direccion, sensor.propietario_nro_casa && `Casa Nº ${sensor.propietario_nro_casa}`]
+    .filter(Boolean)
+    .join(' · ');
 
   return (
     <motion.div
@@ -50,6 +41,9 @@ export const SensorMiniCardReal = ({ index, sensor, lecturas, ultima, selecciona
         sx={{
           p: 2,
           height: '100%',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 0.6,
           borderTop: '3px solid',
           borderColor: color,
           cursor: onClick ? 'pointer' : 'default',
@@ -58,15 +52,10 @@ export const SensorMiniCardReal = ({ index, sensor, lecturas, ultima, selecciona
           transition: 'box-shadow 0.2s ease',
         }}
       >
-        <Stack direction="row" justifyContent="space-between" alignItems="flex-start" sx={{ mb: 1 }}>
-          <Box>
-            <Typography variant="subtitle1" fontWeight={700}>
-              {sensor.n_serie}
-            </Typography>
-            <Typography variant="caption" color="text.secondary">
-              {sensor.ubicacion || 'Sin ubicación'}
-            </Typography>
-          </Box>
+        <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
+          <Typography variant="subtitle1" fontWeight={700}>
+            {sensor.n_serie}
+          </Typography>
           <Chip
             label={estado ? ETIQUETAS_ESTADO[estado] : 'Sin datos'}
             size="small"
@@ -87,21 +76,27 @@ export const SensorMiniCardReal = ({ index, sensor, lecturas, ultima, selecciona
           />
         </Stack>
 
-        {ultima ? (
-          <Stack direction="row" spacing={0.7} sx={{ flexWrap: 'wrap', gap: 0.5, mb: 1 }}>
-            <Chip label={`${Number(ultima.valor_temperatura).toFixed(1)}°C`} size="small" variant="outlined" />
-            <Chip label={`pH ${Number(ultima.valor_ph).toFixed(1)}`} size="small" variant="outlined" />
-            <Chip label={`${Number(ultima.valor_turbidez).toFixed(1)} NTU`} size="small" variant="outlined" />
-          </Stack>
-        ) : (
+        <Linea icon={PlaceIcon}>{sensor.ubicacion || 'Sin ubicación registrada'}</Linea>
+        {sensor.descripcion && (
           <Typography variant="caption" color="text.secondary">
-            Sin lecturas todavía.
+            {sensor.descripcion}
           </Typography>
         )}
 
-        <Box sx={{ height: 50 }}>
-          {lecturasDelSensor.length > 1 && <Line data={sparkData} options={sparklineOptions} />}
-        </Box>
+        <Divider sx={{ my: 0.6 }} />
+        {sensor.propietario_nombre ? (
+          <>
+            <Linea icon={PersonIcon} color="text.primary">
+              {sensor.propietario_nombre}
+            </Linea>
+            {sensor.propietario_telefono && <Linea icon={PhoneIcon}>{sensor.propietario_telefono}</Linea>}
+            {direccion && <Linea icon={HomeIcon}>{direccion}</Linea>}
+          </>
+        ) : (
+          <Linea icon={PersonIcon} color="warning.main">
+            Sin datos del propietario
+          </Linea>
+        )}
       </Paper>
     </motion.div>
   );

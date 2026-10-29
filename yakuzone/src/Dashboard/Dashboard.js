@@ -145,7 +145,6 @@ const FilaParametro = ({ config, lecturas, abierta, onToggle }) => {
 
 const Dashboard = () => {
   const [sensores, setSensores] = useState([]);
-  const [lecturas, setLecturas] = useState([]);
   const [ultimasPorSensor, setUltimasPorSensor] = useState({});
   const [resumenAlertas, setResumenAlertas] = useState({ pendiente: 0, asignada: 0, en_revision: 0 });
   const [loading, setLoading] = useState(true);
@@ -161,14 +160,12 @@ const Dashboard = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [resSensores, resLecturas, resUltimas, resResumen] = await Promise.all([
+        const [resSensores, resUltimas, resResumen] = await Promise.all([
           axios.get('/sensores'),
-          axios.get('/lecturas'),
           axios.get('/lecturas/ultimas'),
           axios.get('/alertas/resumen'),
         ]);
         setSensores(resSensores.data);
-        setLecturas(resLecturas.data);
         const mapa = {};
         resUltimas.data.forEach((lectura) => {
           mapa[lectura.sensor_id] = lectura;
@@ -326,7 +323,6 @@ const Dashboard = () => {
                     <SensorMiniCardReal
                       index={index}
                       sensor={sensor}
-                      lecturas={lecturas}
                       ultima={ultimasPorSensor[sensor.id]}
                       seleccionado={sensor.id === seleccionId}
                       onClick={() => elegirSensor(sensor.id, true)}
@@ -347,7 +343,7 @@ const Dashboard = () => {
                 </Typography>
               )}
               <Button variant="outlined" endIcon={<ArrowForwardIcon />} onClick={() => navigate('/Sensores')}>
-                Ver todos los sensores ({sensores.length})
+                Ver todos los sensores 
               </Button>
             </Box>
 
