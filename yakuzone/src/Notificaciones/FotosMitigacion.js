@@ -15,9 +15,9 @@ export const TIPOS_FOTO = [
   { tipo: 'trabajo', label: 'El trabajo realizado', descripcion: 'Resultado de la mitigación', icon: HandymanIcon },
 ];
 
-const MiniFoto = ({ url, etiqueta, onClick }) => (
+const MiniFoto = ({ url, etiqueta, onClick, alto }) => (
   <ButtonBase onClick={onClick} sx={{ width: '100%', borderRadius: 2, overflow: 'hidden', display: 'block', position: 'relative' }}>
-    <Box component="img" src={url} alt={etiqueta} sx={{ width: '100%', height: 110, objectFit: 'cover', display: 'block' }} />
+    <Box component="img" src={url} alt={etiqueta} sx={{ width: '100%', height: alto, objectFit: 'cover', display: 'block' }} />
     <Typography
       variant="caption"
       sx={{ position: 'absolute', left: 0, right: 0, bottom: 0, px: 1, py: 0.3, color: '#fff', bgcolor: 'rgba(0,0,0,0.55)', textAlign: 'left' }}
@@ -97,7 +97,8 @@ export const SelectorFotos = ({ fotos, onChange, disabled }) => {
 
 // Fotos de evidencia de una alerta ya mitigada. Se descargan con la sesión
 // iniciada (no son públicas), por eso se piden con axios y no con un <img src>.
-export const FotosEvidencia = ({ alertaId, tipos }) => {
+// alto: altura de cada miniatura en píxeles.
+export const FotosEvidencia = ({ alertaId, tipos, alto = 110 }) => {
   const clave = tipos.join(',');
   const [urls, setUrls] = useState(null);
   const [ampliada, setAmpliada] = useState(null);
@@ -135,7 +136,7 @@ export const FotosEvidencia = ({ alertaId, tipos }) => {
         {TIPOS_FOTO.filter(({ tipo }) => tipos.includes(tipo)).map(({ tipo, label }) => (
           <Grid item xs={4} key={tipo}>
             {urls[tipo] ? (
-              <MiniFoto url={urls[tipo]} etiqueta={label} onClick={() => setAmpliada({ url: urls[tipo], label })} />
+              <MiniFoto url={urls[tipo]} etiqueta={label} alto={alto} onClick={() => setAmpliada({ url: urls[tipo], label })} />
             ) : (
               <Typography variant="caption" color="text.secondary">
                 No se pudo cargar: {label}

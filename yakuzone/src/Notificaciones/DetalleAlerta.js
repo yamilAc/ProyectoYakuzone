@@ -43,10 +43,11 @@ import SendIcon from '@mui/icons-material/Send';
 import TaskAltIcon from '@mui/icons-material/TaskAlt';
 import MarkEmailReadIcon from '@mui/icons-material/MarkEmailRead';
 import MailOutlineIcon from '@mui/icons-material/MailOutline';
+import WhatsAppIcon from '@mui/icons-material/WhatsApp';
 import axios from '../axios/axiosConfig';
 import { getUserRole } from '../axios/auth';
 import { crearIconoEstado } from '../utils/estadoSensor';
-import { ESTADOS_ALERTA, textoParametro, textoValor, formatearFecha } from '../utils/alertas';
+import { ESTADOS_ALERTA, textoParametro, textoValor, formatearFecha, avisarCambioAlertas } from '../utils/alertas';
 import { comprimirImagen } from '../utils/imagenes';
 import { SelectorFotos, FotosEvidencia, TIPOS_FOTO } from './FotosMitigacion';
 
@@ -182,16 +183,19 @@ const DetalleAlerta = ({ alertaId, onClose, onCambio }) => {
       const res = await axios.put(`/alertas/${idActual}/asignar`, { equipo_id: equipoId, instrucciones });
       const equipo = equipos.find((e) => e.id === Number(equipoId));
       const jefe = equipo ? `${equipo.jefe_nombre} ${equipo.jefe_apellido}` : 'el jefe del equipo';
-      setMensaje(
-        res.data.correo_enviado
-          ? { severity: 'success', texto: `Alerta asignada. Se notificó por correo a ${jefe}.` }
-          : {
-              severity: 'warning',
-              texto: `Alerta asignada. No se pudo enviar el correo (revisa la configuración SMTP del servidor), pero ${jefe} ya la ve en sus Notificaciones.`,
-            }
-      );
+      const enviados = [res.data.correo_enviado && 'correo', res.data.whatsapp_enviado && 'WhatsApp'].filter(Boolean);
+      const fallidos = [!res.data.correo_enviado && 'el correo', !res.data.whatsapp_enviado && 'el WhatsApp automático'].filter(Boolean);
+      let texto = enviados.length
+        ? `Alerta asignada. Se avisó a ${jefe} por ${enviados.join(' y ')}.`
+        : `Alerta asignada. ${jefe} ya la ve en sus Notificaciones.`;
+      if (fallidos.length) {
+        texto += ` No se pudo enviar ${fallidos.join(' ni ')} (falta configurarlo en el servidor)`;
+        texto += res.data.whatsapp_url && !res.data.whatsapp_enviado ? '; puedes avisarle con el botón "Enviar por WhatsApp".' : '.';
+      }
+      setMensaje({ severity: fallidos.length ? 'warning' : 'success', texto });
       setInstrucciones('');
       await cargarDetalle(idActual);
+      avisarCambioAlertas();
       onCambio && onCambio();
     } catch (err) {
       setMensaje({ severity: 'error', texto: err.response?.data?.error || 'No se pudo asignar la alerta.' });
@@ -214,6 +218,7 @@ const DetalleAlerta = ({ alertaId, onClose, onCambio }) => {
       setObservacion('');
       setFotos(SIN_FOTOS);
       await cargarDetalle(idActual);
+      avisarCambioAlertas();
       onCambio && onCambio();
     } catch (err) {
       setMensaje({ severity: 'error', texto: err.response?.data?.error || 'No se pudo registrar la mitigación.' });
@@ -321,12 +326,23 @@ const DetalleAlerta = ({ alertaId, onClose, onCambio }) => {
                     icon={GroupsIcon}
                     titulo="Equipo de mitigación"
                     accion={
-                      equipo &&
-                      (alerta.correo_enviado ? (
-                        <Chip size="small" variant="outlined" icon={<MarkEmailReadIcon />} label="Correo enviado" />
-                      ) : (
-                        <Chip size="small" variant="outlined" icon={<MailOutlineIcon />} label="Correo no enviado" />
-                      ))
+                      equipo && (
+                        <Stack direction="row" spacing={0.6}>
+                          <Chip
+                            size="small"
+                            variant="outlined"
+                            icon={alerta.correo_enviado ? <MarkEmailReadIcon /> : <MailOutlineIcon />}
+                            label={alerta.correo_enviado ? 'Correo enviado' : 'Correo no enviado'}
+                          />
+                          <Chip
+                            size="small"
+                            variant="outlined"
+                            icon={<WhatsAppIcon />}
+                            label={alerta.whatsapp_enviado ? 'WhatsApp enviado' : 'WhatsApp no enviado'}
+                            color={alerta.whatsapp_enviado ? 'success' : 'default'}
+                          />
+                        </Stack>
+                      )
                     }
                   >
                     {equipo ? (
@@ -352,6 +368,28 @@ const DetalleAlerta = ({ alertaId, onClose, onCambio }) => {
                           <Typography variant="body2" sx={{ mt: 1, whiteSpace: 'pre-line' }}>
                             <strong>Instrucciones:</strong> {alerta.instrucciones}
                           </Typography>
+                        )}
+                        {alerta.estado === 'asignada' && puedeAsignar && (
+                          <Box sx={{ mt: 1.5 }}>
+                            {detalle.whatsapp_url ? (
+                              <Button
+                                component="a"
+                                href={detalle.whatsapp_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                variant="contained"
+                                size="small"
+                                startIcon={<WhatsAppIcon />}
+                                sx={{ bgcolor: '#25D366', '&:hover': { bgcolor: '#1EBE5A' } }}
+                              >
+                                Enviar por WhatsApp
+                              </Button>
+                            ) : (
+                              <Typography variant="caption" color="text.secondary">
+                                El jefe no tiene celular registrado; agrégalo en Usuarios para poder avisarle por WhatsApp.
+                              </Typography>
+                            )}
+                          </Box>
                         )}
                       </Box>
                     ) : (

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import axios from '../axios/axiosConfig';
 import {
   Container,
@@ -21,8 +21,9 @@ import RoomIcon from '@mui/icons-material/Room';
 import GroupsIcon from '@mui/icons-material/Groups';
 import PageHeader from '../components/PageHeader';
 import DetalleAlerta from './DetalleAlerta';
+import { FotosEvidencia, TIPOS_FOTO } from './FotosMitigacion';
 import { getUserRole } from '../axios/auth';
-import { ESTADOS_ALERTA, textoParametro, textoValor, formatearFecha } from '../utils/alertas';
+import { ESTADOS_ALERTA, EVENTO_ALERTAS_CAMBIARON, textoParametro, textoValor, formatearFecha } from '../utils/alertas';
 
 // Administradores y empleados ven todas las alertas y las asignan a un
 // equipo; el jefe de un equipo de mitigación solo ve las de su equipo.
@@ -36,6 +37,25 @@ const PESTANAS_JEFE = [
   { estado: 'asignada', label: 'Por atender' },
   { estado: 'mitigada', label: 'Mitigadas' },
 ];
+
+// Miniaturas de las 3 fotos de evidencia en la tarjeta de una alerta
+// mitigada. Se descargan recién cuando la tarjeta aparece en pantalla; tocar
+// una la amplía (sin abrir el detalle de la alerta).
+const FotosEnTarjeta = ({ alertaId }) => {
+  const ref = useRef(null);
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    if (visible || !ref.current) return undefined;
+    const observador = new IntersectionObserver(([entrada]) => entrada.isIntersecting && setVisible(true), { rootMargin: '200px' });
+    observador.observe(ref.current);
+    return () => observador.disconnect();
+  }, [visible]);
+  return (
+    <Box ref={ref} onClick={(e) => e.stopPropagation()} sx={{ mt: 1, maxWidth: 380, minHeight: 64 }}>
+      {visible && <FotosEvidencia alertaId={alertaId} tipos={TIPOS_FOTO.map((t) => t.tipo)} alto={64} />}
+    </Box>
+  );
+};
 
 const Alerta = () => {
   const esJefe = getUserRole() === 'equipo_mitigacion';
@@ -75,9 +95,11 @@ const Alerta = () => {
     setLoading(true);
     fetchAlertas();
     const interval = setInterval(fetchAlertas, 10000); // Actualiza cada 10 segundos
+    window.addEventListener(EVENTO_ALERTAS_CAMBIARON, fetchAlertas);
     return () => {
       activo = false;
       clearInterval(interval);
+      window.removeEventListener(EVENTO_ALERTAS_CAMBIARON, fetchAlertas);
     };
   }, [estado, recarga]);
 
@@ -85,7 +107,7 @@ const Alerta = () => {
     const termino = busqueda.trim().toLowerCase();
     if (!termino) return alertas;
     return alertas.filter((a) =>
-      [a.numero_serie, a.ubicacion, textoParametro(a.parametro), a.equipo_nombre]
+      [a.numero_serie, a.ubicacion, a.propietario_nombre, textoParametro(a.parametro), a.equipo_nombre]
         .filter(Boolean)
         .some((texto) => texto.toLowerCase().includes(termino))
     );
@@ -130,7 +152,7 @@ const Alerta = () => {
         <TextField
           fullWidth
           size="small"
-          placeholder="Buscar por sensor, ubicación, parámetro o equipo..."
+          placeholder="Buscar por sensor, ubicación, propietario, parámetro o equipo..."
           value={busqueda}
           onChange={(e) => setBusqueda(e.target.value)}
           sx={{ mb: 2.5, bgcolor: 'background.paper', borderRadius: 2 }}
@@ -211,7 +233,10 @@ const Alerta = () => {
                         </Stack>
                         <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.3 }}>
                           {formatearFecha(alerta.fecha_hora)}
+                          {alerta.propietario_nombre && ` · Propietario: ${alerta.propietario_nombre}`}
+                          {alerta.mitigado_en && ` · Mitigada el ${formatearFecha(alerta.mitigado_en)}`}
                         </Typography>
+                        {alerta.estado === 'mitigada' && alerta.fotos > 0 && <FotosEnTarjeta alertaId={alerta.id} />}
                       </Box>
                       <ChevronRightIcon color="action" />
                     </Paper>

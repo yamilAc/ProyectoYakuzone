@@ -28,6 +28,8 @@ CREATE TABLE usuarios (
   nombre VARCHAR(100) NOT NULL,
   apellido VARCHAR(100) NOT NULL,
   ci VARCHAR(20) NOT NULL,
+  -- Celular; obligatorio para los jefes de equipo de mitigación (avisos por WhatsApp)
+  telefono VARCHAR(20),
   email VARCHAR(150) NOT NULL UNIQUE,
   contrasenia_hash VARCHAR(255) NOT NULL,
   rol ENUM('administrador','empleado','equipo_mitigacion') NOT NULL DEFAULT 'empleado',
@@ -104,6 +106,7 @@ CREATE TABLE alertas (
   asignado_por INT,
   asignado_en DATETIME,
   correo_enviado TINYINT(1) NOT NULL DEFAULT 0,
+  whatsapp_enviado TINYINT(1) NOT NULL DEFAULT 0,
   mitigado_por INT,
   mitigado_en DATETIME,
   observacion_mitigacion VARCHAR(500),

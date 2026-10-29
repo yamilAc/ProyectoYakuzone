@@ -9,7 +9,7 @@ const {
   historialDelSensor,
   construirFiltrosAlertas,
 } = require('../services/alertasService');
-const { notificarAsignacion } = require('../services/mitigacionService');
+const { notificarAsignacion, enlaceAsignacion } = require('../services/mitigacionService');
 const { CARPETA_FOTOS, TIPOS_FOTO, recibirFotos, borrarArchivos, esImagenValida } = require('../utils/subidas');
 
 router.use(authenticate);
@@ -45,7 +45,8 @@ router.get('/', async (req, res) => {
     const [rows] = await db.query(
       `SELECT a.id, a.sensor_id, a.parametro, a.valor, a.descripcion, a.fecha_hora, a.estado,
               a.equipo_id, a.asignado_en, a.mitigado_en,
-              s.n_serie AS numero_serie, s.ubicacion, e.nombre AS equipo_nombre
+              s.n_serie AS numero_serie, s.ubicacion, s.propietario_nombre, e.nombre AS equipo_nombre,
+              (SELECT COUNT(*) FROM fotos_mitigacion f WHERE f.alerta_id = a.id) AS fotos
        FROM alertas a
        JOIN sensores s ON s.id = a.sensor_id
        LEFT JOIN equipos_mitigacion e ON e.id = a.equipo_id
@@ -132,6 +133,9 @@ router.get('/:id', async (req, res) => {
     const historial = await historialDelSensor(detalle.sensor.id, detalle.alerta.id);
     res.json({
       ...detalle,
+      // Enlace que abre WhatsApp con el aviso listo para el jefe del equipo
+      // (respaldo del envío automático, para quien asigna alertas).
+      whatsapp_url: esJefe(req) ? null : enlaceAsignacion(detalle),
       historial: {
         pendientes: marcarAccesibles(historial.pendientes),
         mitigadas: marcarAccesibles(historial.mitigadas),
@@ -178,13 +182,19 @@ router.put('/:id/asignar', authorize('administrador', 'empleado'), async (req, r
         : res.status(400).json({ error: 'La alerta ya fue mitigada' });
     }
 
-    // La asignación ya quedó guardada: si el correo falla (SMTP sin
-    // configurar, etc.), el jefe igual ve la alerta en Notificaciones.
-    const correoEnviado = await notificarAsignacion(req.params.id).catch((err) => {
+    // La asignación ya quedó guardada: si el correo o el WhatsApp fallan
+    // (sin configurar, etc.), el jefe igual ve la alerta en Notificaciones.
+    const avisos = await notificarAsignacion(req.params.id).catch((err) => {
       console.error('[Mitigación] Error al avisar al jefe del equipo:', err.message);
-      return false;
+      return { correo: false, whatsapp: false };
     });
-    res.json({ ok: true, correo_enviado: correoEnviado });
+    const detalle = await obtenerDetalleAlerta(req.params.id);
+    res.json({
+      ok: true,
+      correo_enviado: avisos.correo,
+      whatsapp_enviado: avisos.whatsapp,
+      whatsapp_url: detalle ? enlaceAsignacion(detalle) : null,
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
