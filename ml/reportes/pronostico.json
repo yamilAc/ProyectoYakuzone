@@ -1,0 +1,305 @@
+{
+  "generado_en": "2026-11-10T23:37:42",
+  "modelo": "Persistencia (base), ARIMA con ciclo diario (Fourier) y Prophet",
+  "datos": {
+    "fuente": "USGS 01646500 - Potomac River near Washington DC, Little Falls Pump (promedios de 15 min)",
+    "seleccion_orden_arima": "julio 2026",
+    "validacion": "agosto 2026",
+    "prueba": "septiembre y octubre 2026",
+    "historia_por_pronostico": "7 días",
+    "horizonte": "3 horas (12 pasos de 15 min)"
+  },
+  "parametros": {
+    "ph": {
+      "orden_arima": [
+        1,
+        0,
+        0
+      ],
+      "aic_por_orden": {
+        "(1, 0, 0)": -2685.84082890473,
+        "(2, 0, 0)": -2684.7151146865876,
+        "(1, 0, 1)": -2684.927294795599,
+        "(2, 0, 1)": -2684.787403962087,
+        "(0, 1, 1)": -2679.261474656876,
+        "(1, 1, 0)": -2679.244432296074,
+        "(1, 1, 1)": -2680.7742256843526,
+        "(2, 1, 1)": -2684.745194667765
+      },
+      "metodo_elegido": "arima",
+      "validacion": {
+        "persistencia": {
+          "mae_1 h": 0.0422,
+          "rmse_1 h": 0.0655,
+          "mae_2 h": 0.0856,
+          "rmse_2 h": 0.1073,
+          "mae_3 h": 0.1233,
+          "rmse_3 h": 0.1494,
+          "mae_promedio": 0.0723,
+          "rmse_promedio": 0.1007
+        },
+        "arima": {
+          "mae_1 h": 0.0469,
+          "rmse_1 h": 0.0538,
+          "mae_2 h": 0.0446,
+          "rmse_2 h": 0.0536,
+          "mae_3 h": 0.0597,
+          "rmse_3 h": 0.0679,
+          "mae_promedio": 0.0456,
+          "rmse_promedio": 0.055
+        },
+        "prophet": {
+          "mae_1 h": 0.065,
+          "rmse_1 h": 0.0974,
+          "mae_2 h": 0.063,
+          "rmse_2 h": 0.0879,
+          "mae_3 h": 0.0592,
+          "rmse_3 h": 0.0686,
+          "mae_promedio": 0.0627,
+          "rmse_promedio": 0.0894
+        }
+      },
+      "prueba": {
+        "persistencia": {
+          "mae_1 h": 0.0356,
+          "rmse_1 h": 0.0574,
+          "mae_2 h": 0.0539,
+          "rmse_2 h": 0.0771,
+          "mae_3 h": 0.0656,
+          "rmse_3 h": 0.0925,
+          "mae_promedio": 0.0425,
+          "rmse_promedio": 0.0677
+        },
+        "arima": {
+          "mae_1 h": 0.0369,
+          "rmse_1 h": 0.0475,
+          "mae_2 h": 0.0438,
+          "rmse_2 h": 0.0582,
+          "mae_3 h": 0.0533,
+          "rmse_3 h": 0.07,
+          "mae_promedio": 0.0386,
+          "rmse_promedio": 0.0531
+        },
+        "prophet": {
+          "mae_1 h": 0.0575,
+          "rmse_1 h": 0.0768,
+          "mae_2 h": 0.0522,
+          "rmse_2 h": 0.0715,
+          "mae_3 h": 0.0604,
+          "rmse_3 h": 0.0833,
+          "mae_promedio": 0.0553,
+          "rmse_promedio": 0.0736
+        }
+      },
+      "mejora_vs_persistencia_pct": {
+        "persistencia": 0.0,
+        "arima": 9.2,
+        "prophet": -30.1
+      },
+      "segundos_por_pronostico": {
+        "persistencia": 0.0,
+        "arima": 0.498,
+        "prophet": 0.551
+      },
+      "origenes_prueba": 60,
+      "limite_nb512": [
+        6.5,
+        9.0
+      ]
+    },
+    "turbidez": {
+      "orden_arima": [
+        2,
+        1,
+        1
+      ],
+      "aic_por_orden": {
+        "(1, 0, 0)": 1307.45288032604,
+        "(2, 0, 0)": 1279.4560586443488,
+        "(1, 0, 1)": 1271.3980466373507,
+        "(2, 0, 1)": 1269.134976037499,
+        "(0, 1, 1)": 1267.4996131225532,
+        "(1, 1, 0)": 1278.2168201849342,
+        "(1, 1, 1)": 1263.4403128855354,
+        "(2, 1, 1)": 1256.5428482641885
+      },
+      "metodo_elegido": "arima",
+      "validacion": {
+        "persistencia": {
+          "mae_1 h": 0.4378,
+          "rmse_1 h": 0.688,
+          "mae_2 h": 0.7767,
+          "rmse_2 h": 1.3298,
+          "mae_3 h": 0.9456,
+          "rmse_3 h": 2.1572,
+          "mae_promedio": 0.6651,
+          "rmse_promedio": 1.306
+        },
+        "arima": {
+          "mae_1 h": 0.4352,
+          "rmse_1 h": 0.6571,
+          "mae_2 h": 0.712,
+          "rmse_2 h": 1.2426,
+          "mae_3 h": 0.9628,
+          "rmse_3 h": 2.0902,
+          "mae_promedio": 0.6377,
+          "rmse_promedio": 1.2397
+        },
+        "prophet": {
+          "mae_1 h": 0.9685,
+          "rmse_1 h": 1.3841,
+          "mae_2 h": 1.0757,
+          "rmse_2 h": 1.8491,
+          "mae_3 h": 1.214,
+          "rmse_3 h": 2.5664,
+          "mae_promedio": 1.0315,
+          "rmse_promedio": 1.7776
+        }
+      },
+      "prueba": {
+        "persistencia": {
+          "mae_1 h": 0.4056,
+          "rmse_1 h": 0.6533,
+          "mae_2 h": 0.5994,
+          "rmse_2 h": 1.17,
+          "mae_3 h": 0.7933,
+          "rmse_3 h": 1.4777,
+          "mae_promedio": 0.595,
+          "rmse_promedio": 1.2835
+        },
+        "arima": {
+          "mae_1 h": 0.4737,
+          "rmse_1 h": 1.0402,
+          "mae_2 h": 0.6471,
+          "rmse_2 h": 1.3794,
+          "mae_3 h": 0.7833,
+          "rmse_3 h": 1.5356,
+          "mae_promedio": 0.6339,
+          "rmse_promedio": 1.4372
+        },
+        "prophet": {
+          "mae_1 h": 1.2787,
+          "rmse_1 h": 3.375,
+          "mae_2 h": 1.4738,
+          "rmse_2 h": 3.5113,
+          "mae_3 h": 1.7388,
+          "rmse_3 h": 4.2756,
+          "mae_promedio": 1.4658,
+          "rmse_promedio": 3.7337
+        }
+      },
+      "mejora_vs_persistencia_pct": {
+        "persistencia": 0.0,
+        "arima": -6.5,
+        "prophet": -146.4
+      },
+      "segundos_por_pronostico": {
+        "persistencia": 0.0,
+        "arima": 0.794,
+        "prophet": 0.372
+      },
+      "origenes_prueba": 60,
+      "limite_nb512": [
+        0.0,
+        5.0
+      ]
+    },
+    "conductividad": {
+      "orden_arima": [
+        2,
+        1,
+        1
+      ],
+      "aic_por_orden": {
+        "(1, 0, 0)": 1449.841634786476,
+        "(2, 0, 0)": 1444.379973144656,
+        "(1, 0, 1)": 1446.0606811371679,
+        "(2, 0, 1)": 1449.8743330573132,
+        "(0, 1, 1)": 1434.3938907521008,
+        "(1, 1, 0)": 1432.8130192089604,
+        "(1, 1, 1)": 1420.3522063805465,
+        "(2, 1, 1)": 1416.6714041415034
+      },
+      "metodo_elegido": "arima",
+      "validacion": {
+        "persistencia": {
+          "mae_1 h": 1.2444,
+          "rmse_1 h": 3.7327,
+          "mae_2 h": 1.9889,
+          "rmse_2 h": 4.338,
+          "mae_3 h": 2.1556,
+          "rmse_3 h": 2.9814,
+          "mae_promedio": 1.5056,
+          "rmse_promedio": 3.505
+        },
+        "arima": {
+          "mae_1 h": 1.1941,
+          "rmse_1 h": 2.9001,
+          "mae_2 h": 1.7861,
+          "rmse_2 h": 3.2516,
+          "mae_3 h": 1.947,
+          "rmse_3 h": 2.4859,
+          "mae_promedio": 1.3558,
+          "rmse_promedio": 2.6443
+        },
+        "prophet": {
+          "mae_1 h": 4.3344,
+          "rmse_1 h": 6.8941,
+          "mae_2 h": 4.8416,
+          "rmse_2 h": 7.3628,
+          "mae_3 h": 5.183,
+          "rmse_3 h": 6.5762,
+          "mae_promedio": 4.5816,
+          "rmse_promedio": 6.7477
+        }
+      },
+      "prueba": {
+        "persistencia": {
+          "mae_1 h": 0.95,
+          "rmse_1 h": 1.6991,
+          "mae_2 h": 1.7167,
+          "rmse_2 h": 2.7063,
+          "mae_3 h": 2.4778,
+          "rmse_3 h": 3.8418,
+          "mae_promedio": 1.406,
+          "rmse_promedio": 2.4943
+        },
+        "arima": {
+          "mae_1 h": 0.9195,
+          "rmse_1 h": 1.6369,
+          "mae_2 h": 1.4705,
+          "rmse_2 h": 2.4176,
+          "mae_3 h": 2.2344,
+          "rmse_3 h": 3.5894,
+          "mae_promedio": 1.2756,
+          "rmse_promedio": 2.2965
+        },
+        "prophet": {
+          "mae_1 h": 4.4479,
+          "rmse_1 h": 8.3033,
+          "mae_2 h": 4.9774,
+          "rmse_2 h": 9.0389,
+          "mae_3 h": 5.5441,
+          "rmse_3 h": 10.1213,
+          "mae_promedio": 4.768,
+          "rmse_promedio": 8.8409
+        }
+      },
+      "mejora_vs_persistencia_pct": {
+        "persistencia": 0.0,
+        "arima": 9.3,
+        "prophet": -239.1
+      },
+      "segundos_por_pronostico": {
+        "persistencia": 0.0,
+        "arima": 1.231,
+        "prophet": 0.626
+      },
+      "origenes_prueba": 60,
+      "limite_nb512": [
+        0.0,
+        1500.0
+      ]
+    }
+  }
+}

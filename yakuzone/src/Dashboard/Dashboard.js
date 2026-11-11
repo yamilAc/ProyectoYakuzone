@@ -30,12 +30,14 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import SearchIcon from '@mui/icons-material/Search';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
+import InsightsIcon from '@mui/icons-material/Insights';
 import { motion } from 'framer-motion';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import axios from '../axios/axiosConfig';
 import PageHeader from '../components/PageHeader';
 import GraficoParametro, { PARAMETROS_GRAFICO, conUnidad, fueraDeRango, textoRango } from '../components/GraficoParametro';
 import { SensorMiniCardReal, SensorMiniCardPlaceholder } from './SensorMiniCard';
+import { CLASES_CALIDAD, porcentaje } from '../utils/analisis';
 import {
   evaluarEstadoSensor,
   evaluarParametros,
@@ -155,6 +157,7 @@ const Dashboard = () => {
   const [sensores, setSensores] = useState([]);
   const [ultimasPorSensor, setUltimasPorSensor] = useState({});
   const [resumenAlertas, setResumenAlertas] = useState({ pendiente: 0, asignada: 0, en_revision: 0 });
+  const [analisisPorSensor, setAnalisisPorSensor] = useState({});
   const [loading, setLoading] = useState(true);
   const [currentTime, setCurrentTime] = useState(new Date());
 
@@ -168,11 +171,14 @@ const Dashboard = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [resSensores, resUltimas, resResumen] = await Promise.all([
+        const [resSensores, resUltimas, resResumen, resAnalisis] = await Promise.all([
           axios.get('/sensores'),
           axios.get('/lecturas/ultimas'),
           axios.get('/alertas/resumen'),
+          // Resumen de los modelos de análisis (si el servicio no responde, se omite)
+          axios.get('/analisis/resumen').catch(() => ({ data: [] })),
         ]);
+        setAnalisisPorSensor(Object.fromEntries(resAnalisis.data.map((a) => [a.id, a])));
         setSensores(resSensores.data);
         const mapa = {};
         resUltimas.data.forEach((lectura) => {
@@ -486,6 +492,32 @@ const Dashboard = () => {
                           </Box>
                           <ChipEstado estado={evaluarEstadoSensor(ultimaSeleccion)} />
                         </Stack>
+                        {(() => {
+                          const analisis = analisisPorSensor[seleccionado.id];
+                          const clase = CLASES_CALIDAD[analisis?.ultimo_analisis?.clase];
+                          return (
+                            <Box
+                              sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', mb: 1.5, p: 1, borderRadius: 1.5, bgcolor: 'action.hover' }}
+                            >
+                              <InsightsIcon fontSize="small" color="primary" />
+                              {clase ? (
+                                <>
+                                  <Chip size="small" label={clase.label} sx={{ bgcolor: clase.color, color: '#fff', fontWeight: 600 }} />
+                                  <Typography variant="caption">
+                                    Prob. apta {porcentaje(analisis.ultimo_analisis.probabilidad_apta)} · {analisis.anomalias_24h} anomalía(s) en 24 h
+                                  </Typography>
+                                </>
+                              ) : (
+                                <Typography variant="caption" color="text.secondary">
+                                  Sin análisis de los modelos todavía
+                                </Typography>
+                              )}
+                              <Button size="small" sx={{ ml: 'auto' }} onClick={() => navigate('/Analisis', { state: { sensorId: seleccionado.id } })}>
+                                Ver análisis
+                              </Button>
+                            </Box>
+                          );
+                        })()}
                         <Stack spacing={1}>
                           {PARAMETROS_GRAFICO.map((p) => (
                             <FilaParametro

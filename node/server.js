@@ -12,6 +12,9 @@ const lecturasRoutes = require('./routes/lecturas');
 const alertasRoutes = require('./routes/alertas');
 const equiposRoutes = require('./routes/equipos');
 const reportesRoutes = require('./routes/reportes');
+const analisisRoutes = require('./routes/analisis');
+const alertasPreventivasRoutes = require('./routes/alertasPreventivas');
+const { iniciarAnalisisML } = require('./services/analisisService');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -29,6 +32,8 @@ app.use('/api/lecturas', lecturasRoutes);
 app.use('/api/alertas', alertasRoutes);
 app.use('/api/equipos', equiposRoutes);
 app.use('/api/reportes', reportesRoutes);
+app.use('/api/analisis', analisisRoutes);
+app.use('/api/alertas-preventivas', alertasPreventivasRoutes);
 
 app.use((req, res) => {
   res.status(404).json({ error: 'Ruta no encontrada' });
@@ -41,3 +46,7 @@ app.listen(PORT, () => {
 // Broker MQTT embebido + suscriptor que persiste las lecturas entrantes.
 iniciarBrokerMQTT(MQTT_PORT);
 iniciarSuscriptorMQTT(MQTT_PORT);
+
+// Clasificación, anomalías y pronóstico con el servicio de aprendizaje
+// automático (carpeta ml/); si no está levantado, se reintenta en cada ciclo.
+iniciarAnalisisML();

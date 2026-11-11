@@ -25,7 +25,8 @@ Frontend React  <---- API REST (/api/...) con JWT ----  Express  <----------+
    ```
    Esto crea la base `yakuDB`, todas las tablas (`usuarios`, `sensores`,
    `lecturas`, `equipos_mitigacion`, `miembros_equipo`, `alertas`,
-   `sugerencias_mitigacion` y `fotos_mitigacion`), un sensor de ejemplo
+   `sugerencias_mitigacion`, `informes_mitigacion`, `fotos_mitigacion`,
+   `analisis_lecturas`, `pronosticos` y `alertas_preventivas`), un sensor de ejemplo
    (`SN-001`) y un usuario administrador:
    - correo: `admin@yakuzone.com`
    - contraseña: `Admin123!`
@@ -39,6 +40,7 @@ Frontend React  <---- API REST (/api/...) con JWT ----  Express  <----------+
    mysql -u root -p yakuDB < migration_fotos_mitigacion.sql
    mysql -u root -p yakuDB < migration_whatsapp.sql
    mysql -u root -p yakuDB < migration_revision_informes.sql
+   mysql -u root -p yakuDB < migration_analisis_ml.sql
    ```
 
    Las fotos de evidencia que suben los jefes de equipo se guardan en
@@ -169,6 +171,26 @@ celular registrado en Usuarios.
   del sensor y del propietario) y `GET /api/reportes/general` (todo el sistema)
 - `GET /api/equipos` (administrador y empleado),
   `POST/PUT/DELETE /api/equipos` (solo administrador)
+- Análisis con aprendizaje automático (administrador y empleado):
+  `GET /api/analisis/estado` (servicio de ML y últimos ciclos),
+  `GET /api/analisis/resumen` (último análisis de cada sensor),
+  `GET /api/analisis/sensores/:id?horas=24` (evolución, anomalías y
+  pronósticos de un sensor), `GET /api/analisis/metricas` y
+  `GET /api/analisis/figuras/:nombre` (desempeño de los modelos)
+- Alertas preventivas (informativas): `GET /api/alertas-preventivas`,
+  `GET /api/alertas-preventivas/resumen`, `PUT /api/alertas-preventivas/vistas`
+  (marca todas como vistas) y `PUT /api/alertas-preventivas/:id/vista`
+
+## Servicio de aprendizaje automático
+
+El backend consulta al microservicio FastAPI de `ml/` (ver `ml/README.md`) en
+`ML_URL` (por defecto `http://127.0.0.1:8000`): cada minuto envía las
+lecturas nuevas de cada sensor para clasificarlas (apta / en riesgo / no apta)
+y detectar anomalías, y cada 15 minutos pide el pronóstico a 3 horas. Los
+resultados se guardan en `analisis_lecturas` y `pronosticos`; las lecturas
+anómalas y los pronósticos fuera de la NB 512-04 generan alertas preventivas.
+Si el servicio no está levantado, el resto del sistema funciona igual y el
+análisis se retoma cuando vuelve. Con `ML_URL=desactivado` no se consulta.
 
 ## Umbrales de alerta
 

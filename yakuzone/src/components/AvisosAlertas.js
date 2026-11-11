@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Box, IconButton, Paper, Stack, Typography } from '@mui/material';
 import { motion, AnimatePresence } from 'framer-motion';
 import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive';
@@ -6,23 +7,38 @@ import CloseIcon from '@mui/icons-material/Close';
 import axios from '../axios/axiosConfig';
 import DetalleAlerta from '../Notificaciones/DetalleAlerta';
 import { textoParametro, textoValor, avisarCambioAlertas } from '../utils/alertas';
+import { COLOR_PREVENTIVA } from '../utils/analisis';
 
 const INTERVALO_MS = 10000;
 const DURACION_AVISO_MS = 20000;
 const MAX_AVISOS = 3;
 
 // Qué se anuncia a cada rol: administradores y empleados, cada alerta nueva
-// sin asignar y cada informe de visita que llega para revisar; el jefe de un
-// equipo de mitigación, cada alerta asignada (o reasignada) a su equipo.
+// sin asignar, cada informe de visita que llega para revisar y cada alerta
+// preventiva de los modelos de análisis; el jefe de un equipo de mitigación,
+// cada alerta asignada (o reasignada) a su equipo.
+const textoNormativa = (a) => `${a.numero_serie} — ${textoParametro(a.parametro)}: ${textoValor(a.parametro, a.valor)}`;
 const FUENTES_GESTION = [
-  { estado: 'pendiente', titulo: 'Nueva alerta de calidad del agua', color: 'error.main' },
-  { estado: 'en_revision', titulo: 'Informe de visita por revisar', color: '#7B1FA2' },
+  { clave: 'pendiente', ruta: '/alertas', params: { estado: 'pendiente' }, titulo: 'Nueva alerta de calidad del agua', color: 'error.main', texto: textoNormativa },
+  { clave: 'en_revision', ruta: '/alertas', params: { estado: 'en_revision' }, titulo: 'Informe de visita por revisar', color: '#7B1FA2', texto: textoNormativa },
+  {
+    clave: 'preventiva',
+    ruta: '/alertas-preventivas',
+    params: { vista: 0 },
+    titulo: 'Alerta preventiva',
+    color: COLOR_PREVENTIVA,
+    texto: (a) => `${a.numero_serie} — ${a.descripcion}`,
+    preventiva: true,
+  },
 ];
-const FUENTES_JEFE = [{ estado: 'asignada', titulo: 'Nueva alerta asignada a tu equipo', color: 'error.main' }];
+const FUENTES_JEFE = [
+  { clave: 'asignada', ruta: '/alertas', params: { estado: 'asignada' }, titulo: 'Nueva alerta asignada a tu equipo', color: 'error.main', texto: textoNormativa },
+];
 
 // Aviso emergente, visible en cualquier pantalla del sistema. Al tocarlo se
 // abre el detalle de la alerta (datos del sensor, mapa y propietario).
 const AvisosAlertas = ({ userRole }) => {
+  const navigate = useNavigate();
   const fuentes = userRole === 'equipo_mitigacion' ? FUENTES_JEFE : FUENTES_GESTION;
   // Alertas ya conocidas por estado: las que existían al entrar no se
   // anuncian, solo las que aparezcan después.
@@ -36,18 +52,29 @@ const AvisosAlertas = ({ userRole }) => {
     const revisar = async () => {
       for (const fuente of fuentes) {
         try {
-          const res = await axios.get('/alertas', { params: { estado: fuente.estado } });
+          const res = await axios.get(fuente.ruta, { params: fuente.params });
           if (!activo) return;
-          const yaVistas = conocidas.current[fuente.estado];
+          const yaVistas = conocidas.current[fuente.clave];
           // Una alerta que sale de este estado y vuelve (p. ej. reasignada
           // tras una visita no aprobada) se anuncia de nuevo.
-          conocidas.current[fuente.estado] = new Set(res.data.map((a) => a.id));
+          conocidas.current[fuente.clave] = new Set(res.data.map((a) => a.id));
           if (!yaVistas) continue;
           const nuevas = res.data.filter((a) => !yaVistas.has(a.id));
           if (nuevas.length > 0) {
             const recibido = Date.now();
             setAvisos((actuales) =>
-              [...nuevas.map((a) => ({ ...a, clave: `${fuente.estado}-${a.id}-${recibido}`, titulo: fuente.titulo, color: fuente.color, recibido })), ...actuales].slice(0, MAX_AVISOS)
+              [
+                ...nuevas.map((a) => ({
+                  ...a,
+                  clave: `${fuente.clave}-${a.id}-${recibido}`,
+                  titulo: fuente.titulo,
+                  color: fuente.color,
+                  linea: fuente.texto(a),
+                  preventiva: Boolean(fuente.preventiva),
+                  recibido,
+                })),
+                ...actuales,
+              ].slice(0, MAX_AVISOS)
             );
             avisarCambioAlertas(); // el contador del menú se actualiza al mismo tiempo que el aviso
           }
@@ -75,8 +102,13 @@ const AvisosAlertas = ({ userRole }) => {
 
   const cerrar = (clave) => setAvisos((actuales) => actuales.filter((a) => a.clave !== clave));
 
+  // Una alerta normativa abre su detalle; una preventiva lleva al análisis del sensor.
   const abrir = (aviso) => {
     cerrar(aviso.clave);
+    if (aviso.preventiva) {
+      navigate('/Analisis', { state: { sensorId: aviso.sensor_id } });
+      return;
+    }
     setAlertaAbierta(aviso.id);
   };
 
@@ -128,7 +160,7 @@ const AvisosAlertas = ({ userRole }) => {
                     {a.titulo}
                   </Typography>
                   <Typography variant="body2">
-                    {a.numero_serie} — {textoParametro(a.parametro)}: {textoValor(a.parametro, a.valor)}
+                    {a.linea}
                   </Typography>
                   <Stack direction="row" justifyContent="space-between" sx={{ mt: 0.3 }}>
                     <Typography variant="caption" color="text.secondary" noWrap sx={{ minWidth: 0 }}>

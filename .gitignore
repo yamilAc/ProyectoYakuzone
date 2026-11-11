@@ -1,8 +1,10 @@
-# Solo se versionan el backend (node/) y el frontend (yakuzone/)
+# Solo se versionan el backend (node/), el frontend (yakuzone/) y el
+# servicio de aprendizaje automático (ml/)
 /*
 !/.gitignore
 !/node/
 !/yakuzone/
+!/ml/
 
 # Repositorio inicial de Create React App (sin contenido del proyecto)
 /yakuzone/.git_cra_inicial/
@@ -13,5 +15,11 @@ build/
 .env
 # Fotos de evidencia subidas por los equipos de mitigación (datos, no código)
 /node/uploads/
+# Aprendizaje automático: entorno de Python y datasets descargados (se
+# documenta en ml/README.md de dónde obtenerlos)
+/ml/.venv/
+/ml/datos/
+__pycache__/
+.ipynb_checkpoints/
 *.log
 ~$*

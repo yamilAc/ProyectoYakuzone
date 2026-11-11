@@ -12,6 +12,7 @@ import HistoryIcon from '@mui/icons-material/History';
 import PeopleIcon from '@mui/icons-material/People';
 import SensorsIcon from '@mui/icons-material/Sensors';
 import GroupsIcon from '@mui/icons-material/Groups';
+import InsightsIcon from '@mui/icons-material/Insights';
 import LogoutIcon from '@mui/icons-material/Logout';
 import logo from './images/logoYakuzone.png';
 import axios from './axios/axiosConfig';
@@ -35,6 +36,7 @@ const buildLinks = (userRole) => {
     { to: '/zonas', label: 'Zonas', icon: RoomIcon },
     { to: '/Lectura', label: 'Lecturas', icon: ShowChartIcon },
     { to: '/Alerta', label: 'Notificaciones', icon: NotificationsIcon },
+    { to: '/Analisis', label: 'Análisis', icon: InsightsIcon },
   ];
   if (userRole === 'administrador') {
     base.push({ to: '/DatosHistoricos', label: 'Datos Históricos', icon: HistoryIcon });
@@ -43,7 +45,7 @@ const buildLinks = (userRole) => {
     base.push({ to: '/Usuarios', label: 'Usuarios', icon: PeopleIcon });
   }
   // La mitigación se gestiona desde Notificaciones: ahí se asigna cada alerta
-  // a un equipo y su jefe la marca como mitigada.
+  // a un equipo, su jefe envía el informe de la visita y se aprueba.
   return base;
 };
 

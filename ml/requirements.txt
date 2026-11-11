@@ -1,0 +1,19 @@
+# Servicio de aprendizaje automático de Yakuzone (Python 3.11)
+# Entrenamiento
+pandas==2.2.3
+numpy==2.1.3
+scikit-learn==1.5.2
+# Versión solo para CPU de XGBoost (mismo proyecto; se importa como xgboost):
+# 1,9 MB en lugar de los 125 MB de la versión con soporte para GPU.
+xgboost-cpu==2.1.3
+statsmodels==0.14.4
+prophet==1.1.6
+# cmdstanpy 1.2.5 o superior no reconoce la copia de Stan que trae Prophet 1.1.6
+cmdstanpy==1.2.4
+matplotlib==3.9.3
+joblib==1.4.2
+PyMySQL==1.1.1
+python-dotenv==1.0.1
+# Microservicio
+fastapi==0.115.6
+uvicorn==0.32.1

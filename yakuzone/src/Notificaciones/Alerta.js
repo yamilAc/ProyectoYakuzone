@@ -21,6 +21,7 @@ import RoomIcon from '@mui/icons-material/Room';
 import GroupsIcon from '@mui/icons-material/Groups';
 import PageHeader from '../components/PageHeader';
 import DetalleAlerta from './DetalleAlerta';
+import AlertasPreventivas from './AlertasPreventivas';
 import { FotosEvidencia, TIPOS_FOTO } from './FotosMitigacion';
 import { getUserRole } from '../axios/auth';
 import { ESTADOS_ALERTA, RESULTADOS_VISITA, EVENTO_ALERTAS_CAMBIARON, textoParametro, textoValor, formatearFecha } from '../utils/alertas';
@@ -34,6 +35,8 @@ const PESTANAS_GESTION = [
   { estado: 'en_revision', label: 'Pendientes' },
   { estado: 'mitigada', label: 'Mitigadas' },
   { estado: '', label: 'Todas' },
+  // Alertas preventivas de los modelos de análisis (lista aparte, informativa)
+  { estado: 'preventivas', label: 'Preventivas' },
 ];
 const PESTANAS_JEFE = [
   { estado: 'asignada', label: 'Por atender' },
@@ -85,20 +88,24 @@ const Alerta = () => {
   const [busqueda, setBusqueda] = useState('');
   const [alertaAbierta, setAlertaAbierta] = useState(null);
   const [recarga, setRecarga] = useState(0);
+  const [preventivasSinVer, setPreventivasSinVer] = useState(0);
 
   const estado = pestanas[tab].estado;
+  const enPreventivas = estado === 'preventivas';
 
   useEffect(() => {
     let activo = true; // evita que una respuesta de la pestaña anterior pise la actual
     const fetchAlertas = async () => {
       try {
-        const [resLista, resResumen] = await Promise.all([
-          axios.get('/alertas', { params: estado ? { estado } : {} }),
+        const [resLista, resResumen, resPreventivas] = await Promise.all([
+          enPreventivas ? { data: [] } : axios.get('/alertas', { params: estado ? { estado } : {} }),
           axios.get('/alertas/resumen'),
+          esJefe ? { data: null } : axios.get('/alertas-preventivas/resumen').catch(() => ({ data: null })),
         ]);
         if (!activo) return;
         setAlertas(resLista.data);
         setResumen(resResumen.data);
+        if (resPreventivas.data) setPreventivasSinVer(resPreventivas.data.sin_ver);
         setError(null);
       } catch (err) {
         console.error('Error al obtener alertas:', err);
@@ -117,7 +124,7 @@ const Alerta = () => {
       clearInterval(interval);
       window.removeEventListener(EVENTO_ALERTAS_CAMBIARON, fetchAlertas);
     };
-  }, [estado, recarga]);
+  }, [estado, enPreventivas, esJefe, recarga]);
 
   const visibles = useMemo(() => {
     const termino = busqueda.trim().toLowerCase();
@@ -130,7 +137,7 @@ const Alerta = () => {
   }, [alertas, busqueda]);
 
   const totalTodas = resumen.pendiente + resumen.asignada + (resumen.en_revision || 0) + resumen.mitigada;
-  const contador = (e) => (e ? resumen[e] || 0 : totalTodas);
+  const contador = (e) => (e === 'preventivas' ? preventivasSinVer : e ? resumen[e] || 0 : totalTodas);
   const avisosEncabezado = esJefe
     ? [resumen.asignada > 0 && `${resumen.asignada} por atender`]
     : [resumen.pendiente > 0 && `${resumen.pendiente} sin asignar`, resumen.en_revision > 0 && `${resumen.en_revision} por revisar`];
@@ -184,7 +191,9 @@ const Alerta = () => {
           }}
         />
 
-        {loading && alertas.length === 0 ? (
+        {enPreventivas ? (
+          <AlertasPreventivas busqueda={busqueda} onCambio={() => setRecarga((n) => n + 1)} />
+        ) : loading && alertas.length === 0 ? (
           <Box display="flex" justifyContent="center" alignItems="center" minHeight="300px">
             <CircularProgress />
           </Box>

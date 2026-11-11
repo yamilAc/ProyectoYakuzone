@@ -1,0 +1,102 @@
+{
+  "generado_en": "2026-11-10T23:30:30",
+  "modelo": "Isolation Forest (300 árboles) con variables derivadas",
+  "datos": {
+    "fuente": "USGS 01646500 - Potomac River near Washington DC, Little Falls Pump (lecturas cada 5 min)",
+    "entrenamiento": "01/05/2026 a 31/07/2026 (26472 lecturas)",
+    "validacion": "01/08/2026 a 31/08/2026",
+    "prueba": "01/09/2026 a 31/10/2026 (17526 lecturas)"
+  },
+  "variables": [
+    "temperatura_cambio",
+    "temperatura_desv_1h",
+    "temperatura_deriva_6h",
+    "conductividad_cambio",
+    "conductividad_desv_1h",
+    "conductividad_deriva_6h",
+    "ph_cambio",
+    "ph_desv_1h",
+    "ph_deriva_6h",
+    "turbidez_cambio",
+    "turbidez_desv_1h",
+    "turbidez_deriva_6h",
+    "minutos_congelado"
+  ],
+  "umbral": -0.06281700514308315,
+  "validacion": {
+    "precision": 0.4539,
+    "sensibilidad": 0.1057,
+    "f1": 0.1714,
+    "auc_roc": 0.8755,
+    "tasa_falsas_alarmas": 0.0101
+  },
+  "prueba": {
+    "precision": 0.6757,
+    "sensibilidad": 0.3378,
+    "f1": 0.4505,
+    "auc_roc": 0.9102,
+    "tasa_falsas_alarmas": 0.0064,
+    "deteccion_por_evento": 0.8833,
+    "falsas_alarmas_por_dia": 1.77
+  },
+  "prueba_solo_modelo": {
+    "precision": 0.4433,
+    "sensibilidad": 0.1291,
+    "f1": 0.2,
+    "auc_roc": 0.9102,
+    "tasa_falsas_alarmas": 0.0064
+  },
+  "regla_congelada": "Además del modelo, se marca como anómala toda lectura con 30 minutos o más de valores idénticos en los cuatro parámetros",
+  "prueba_por_tipo": {
+    "pico_aislado": {
+      "lecturas_anomalas": 40,
+      "detectadas": 39,
+      "sensibilidad": 0.975,
+      "eventos": 40,
+      "eventos_detectados": 39,
+      "deteccion_por_evento": 0.975
+    },
+    "deriva": {
+      "lecturas_anomalas": 446,
+      "detectadas": 6,
+      "sensibilidad": 0.0135,
+      "eventos": 10,
+      "eventos_detectados": 4,
+      "deteccion_por_evento": 0.4
+    },
+    "lectura_congelada": {
+      "lecturas_anomalas": 180,
+      "detectadas": 180,
+      "sensibilidad": 1.0,
+      "eventos": 10,
+      "eventos_detectados": 10,
+      "deteccion_por_evento": 1.0
+    }
+  },
+  "diagnostico_de_causa": {
+    "pico_aislado": {
+      "detectadas": 39,
+      "diagnostico_correcto": 38,
+      "exactitud": 0.9744
+    },
+    "deriva": {
+      "detectadas": 6,
+      "diagnostico_correcto": 3,
+      "exactitud": 0.5
+    },
+    "lectura_congelada": {
+      "detectadas": 180,
+      "diagnostico_correcto": 180,
+      "exactitud": 1.0
+    }
+  },
+  "lecturas_reales_marcadas": {
+    "total": 108,
+    "por_causa_sugerida": {
+      "pico_aislado": 32,
+      "atipica": 38,
+      "variacion_real": 18,
+      "deriva": 20
+    }
+  }
+}
