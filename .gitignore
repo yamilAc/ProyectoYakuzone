@@ -1,10 +1,15 @@
-# Solo se versionan el backend (node/), el frontend (yakuzone/) y el
-# servicio de aprendizaje automático (ml/)
+# Solo se versionan el backend (node/), el frontend (yakuzone/), el
+# servicio de aprendizaje automático (ml/) y el firmware del nodo (esp32/)
 /*
 !/.gitignore
 !/node/
 !/yakuzone/
 !/ml/
+!/esp32/
+
+# Firmware: red Wi-Fi y contraseña de cada nodo (plantilla en
+# credenciales_ejemplo.h)
+/esp32/**/credenciales.h
 
 # Repositorio inicial de Create React App (sin contenido del proyecto)
 /yakuzone/.git_cra_inicial/
