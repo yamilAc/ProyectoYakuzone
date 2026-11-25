@@ -25,8 +25,7 @@ sondas comparten el recipiente (en la prueba, el pH del agua del grifo pasó de
 7,3 a 8,7 al meter la sonda de TDS). El programa lo enciende solo mientras
 mide la conductividad, después de leer el pH.
 
-Diagrama: [conexiones.png](conexiones.png) (en él, el "+" del TDS todavía
-aparece en 3,3 V). Los sensores analógicos van en
+Diagrama: [conexiones.png](conexiones.png). Los sensores analógicos van en
 pines del ADC1 (GPIO 32 a 39), porque los del ADC2 no se pueden leer mientras
 el Wi-Fi está encendido. Los módulos de pH y turbidez entregan hasta 5 V y los
 pines del ESP32 admiten 3,3 V: el divisor deja la señal a la mitad.
