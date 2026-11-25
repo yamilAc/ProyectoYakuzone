@@ -46,6 +46,14 @@ export const ETIQUETAS_ESTADO = {
 // Estados que se muestran en las leyendas de los mapas.
 export const LEYENDA_ESTADOS = ['verde', 'amarillo', 'rojo', 'desconectado'];
 
+// Valor numérico de un parámetro de la lectura, o NaN si no vino. Number(null)
+// da 0, así que sin esta revisión un parámetro faltante (una sonda que dejó
+// de enviar) se evaluaba como 0 y, en el pH, ponía el nodo en rojo.
+const valorDe = (lectura, campo) => {
+  const valor = lectura[campo];
+  return valor === null || valor === undefined || valor === '' ? NaN : Number(valor);
+};
+
 // Devuelve 'rojo' | 'amarillo' | 'verde' | 'desconectado' (la última lectura
 // tiene más de MINUTOS_SIN_CONEXION) | null (sin lecturas aún). La
 // temperatura no tiene umbral normado, así que no participa del cálculo
@@ -56,7 +64,7 @@ export const evaluarEstadoSensor = (lectura) => {
 
   let estado = 'verde';
   for (const campo of Object.keys(UMBRALES)) {
-    const valor = Number(lectura[campo]);
+    const valor = valorDe(lectura, campo);
     if (Number.isNaN(valor)) continue;
 
     const umbral = UMBRALES[campo];
@@ -120,7 +128,7 @@ export const evaluarParametros = (lectura) => {
 
   return ORDEN_PARAMETROS.map((campo) => {
     const { nombre, unidad } = ETIQUETAS_CAMPO[campo];
-    const valorNum = Number(lectura[campo]);
+    const valorNum = valorDe(lectura, campo);
 
     if (Number.isNaN(valorNum)) {
       return { campo, nombre, unidad, valor: null, estado: null, texto: 'Sin dato' };
