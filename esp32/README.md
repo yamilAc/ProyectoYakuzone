@@ -12,15 +12,46 @@ fecha y hora la asigna el servidor al recibir el mensaje.
 
 ## Sensores y pines
 
-| Sensor | Parámetro | Pin del ESP32 | Estado |
+| Sensor | Parámetro | Alimentación | Pin del ESP32 |
 |---|---|---|---|
-| DS18B20 sumergible (1-Wire) | temperatura | GPIO 4 (D4) | conectado |
-| PH-4502C | ph | GPIO 34 | reservado |
-| Turbidez | turbidez | GPIO 35 | reservado |
-| DFR0300 | conductividad | GPIO 32 | reservado |
+| DS18B20 sumergible (1-Wire) | temperatura | 3,3 V | GPIO 4 (D4), con 4,7 kΩ a 3,3 V |
+| DFRobot SEN0244 (TDS) | conductividad | GPIO 25 (D25) | GPIO 32 (D32), directo |
+| Módulo de turbidez | turbidez | 5 V (VIN) | GPIO 35 (D35), con divisor de 2 x 10 kΩ |
+| PH-4502C | ph | 5 V (VIN) | GPIO 34 (D34), con divisor de 2 x 10 kΩ |
 
-Los sensores analógicos van en pines del ADC1 (GPIO 32 a 39), porque los del
-ADC2 no se pueden leer mientras el Wi-Fi está encendido.
+El "+" del sensor de TDS va al GPIO 25 y no a 3,3 V: el sensor hace circular
+una pequeña corriente por el agua que desvía la lectura de pH cuando las
+sondas comparten el recipiente (en la prueba, el pH del agua del grifo pasó de
+7,3 a 8,7 al meter la sonda de TDS). El programa lo enciende solo mientras
+mide la conductividad, después de leer el pH.
+
+Diagrama: [conexiones.png](conexiones.png) (en él, el "+" del TDS todavía
+aparece en 3,3 V). Los sensores analógicos van en
+pines del ADC1 (GPIO 32 a 39), porque los del ADC2 no se pueden leer mientras
+el Wi-Fi está encendido. Los módulos de pH y turbidez entregan hasta 5 V y los
+pines del ESP32 admiten 3,3 V: el divisor deja la señal a la mitad.
+
+Al inicio del programa, `USAR_TEMPERATURA`, `USAR_CONDUCTIVIDAD`,
+`USAR_TURBIDEZ` y `USAR_PH` indican qué sensores están conectados (1 o 0),
+para armar y probar de a uno. Las constantes de calibración están debajo; el
+Monitor Serie muestra en cada lectura el voltaje de cada sensor analógico.
+
+## Calibración
+
+- **pH:** con el conector BNC en cortocircuito (sin la sonda, unir el centro
+  con la parte metálica exterior), el módulo simula pH 7: ajustar el
+  potenciómetro más cercano al BNC hasta que el Monitor Serie muestre 2,50 V.
+  Con una solución buffer de pH 4,00 (o 9,18), anotar el voltaje y calcular
+  `PH_VOLTIOS_POR_UNIDAD = (voltaje con pH 4 - 2,50) / 3`.
+- **Turbidez:** con la sonda en agua limpia (embotellada), copiar el voltaje en
+  `TURBIDEZ_VOLTAJE_AGUA_LIMPIA`. Solo la punta transparente va en el agua.
+  El voltaje mostrado es el promedio de las últimas 5 lecturas: después de
+  cambiar la sonda de agua, esperar unos 25 s antes de anotarlo. Cerca del
+  agua limpia, un paso del ADC equivale a unos 7-10 NTU, del orden del límite
+  de la NB 512 (5 NTU); el promedio evita que la lectura salte entre valores
+  vecinos.
+- **Conductividad:** comparar con un medidor TDS de lapicero en la misma agua
+  y ajustar `CONDUCTIVIDAD_FACTOR = ppm del lapicero / ppm del nodo`.
 
 ## Conexión del DS18B20 (sonda de 3 hilos)
 

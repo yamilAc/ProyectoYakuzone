@@ -13,3 +13,10 @@
 
 // Número de serie con el que el nodo está registrado en la página Sensores
 #define N_SERIE "SN-010"
+
+// (Opcional) Segunda red, por ejemplo el hotspot de la laptop en la defensa.
+// Si la primera red no está disponible, el nodo prueba esta. Con el hotspot
+// de Windows, la IP de la laptop es 192.168.137.1. Quita las "//" para usarla.
+// #define WIFI_SSID_2 "nombre-del-hotspot"
+// #define WIFI_CLAVE_2 "contrasena-del-hotspot"
+// #define MQTT_SERVIDOR_2 "192.168.137.1"
