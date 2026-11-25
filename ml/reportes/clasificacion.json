@@ -1,5 +1,5 @@
 {
-  "generado_en": "2026-11-10T23:46:36",
+  "generado_en": "2026-11-23T23:53:42",
   "modelo_elegido": "XGBoost",
   "criterio": "Mayor F1 (promedio macro de las tres clases) en validación cruzada estratificada de 5 particiones",
   "datos": {
@@ -353,11 +353,11 @@
     "temperatura": 0.1219
   },
   "aplicacion_lecturas_del_sistema": {
-    "lecturas": 4944,
+    "lecturas": 7282,
     "distribucion": {
-      "apta": 4914,
-      "en_riesgo": 3,
-      "no_apta": 27
+      "apta": 6258,
+      "en_riesgo": 300,
+      "no_apta": 724
     }
   },
   "conjunto_descartado": {

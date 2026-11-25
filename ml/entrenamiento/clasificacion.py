@@ -250,10 +250,11 @@ def graficar(resultados, ajustados, elegido, y_prueba, importancias):
     figura, eje = plt.subplots(figsize=(7, 4))
     nombres = list(resultados)
     posiciones = np.arange(len(nombres))
-    for k, m in enumerate(['exactitud', 'precision', 'sensibilidad', 'f1']):
+    etiquetas = {'exactitud': 'Exactitud', 'precision': 'Precisión', 'sensibilidad': 'Sensibilidad', 'f1': 'F1'}
+    for k, m in enumerate(etiquetas):
         medias = [resultados[n]['validacion_cruzada_5'][m]['media'] for n in nombres]
         desv = [resultados[n]['validacion_cruzada_5'][m]['desv'] for n in nombres]
-        eje.bar(posiciones + (k - 1.5) * 0.2, medias, width=0.2, yerr=desv, capsize=3, label=m.capitalize())
+        eje.bar(posiciones + (k - 1.5) * 0.2, medias, width=0.2, yerr=desv, capsize=3, label=etiquetas[m])
     eje.set_xticks(posiciones, [NOMBRES[n] for n in nombres])
     eje.set_ylim(0, 1)
     eje.set_ylabel('Promedio en validación cruzada (5 particiones)')
@@ -276,6 +277,9 @@ def graficar(resultados, ajustados, elegido, y_prueba, importancias):
     for nombre, (_, prob, _) in ajustados.items():
         RocCurveDisplay.from_predictions((y_prueba == no_apta).astype(int), prob[:, no_apta], name=NOMBRES[nombre], ax=eje)
     eje.plot([0, 1], [0, 1], linestyle='--', color='#9e9e9e', label='Azar')
+    eje.set_xlabel('Tasa de falsos positivos')
+    eje.set_ylabel('Tasa de verdaderos positivos')
+    eje.legend(loc='lower right')
     eje.set_title('Curvas ROC para "no apta" (datos de prueba)')
     guardar_figura(figura, 'clasificacion_roc')
 
