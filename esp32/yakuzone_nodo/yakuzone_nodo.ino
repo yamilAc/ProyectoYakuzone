@@ -149,8 +149,18 @@ void vigilarMqtt() {
 
   const char* broker = REDES[redActual].broker;
   Serial.printf("[MQTT] Conectando al broker %s:%d...\n", broker, MQTT_PUERTO);
-  if (mqtt.connect(idCliente)) {
+  // Usuario = número de serie, contraseña = MQTT_CLAVE (ver credenciales.h).
+#ifdef MQTT_CLAVE
+  const bool conectado = mqtt.connect(idCliente, N_SERIE, MQTT_CLAVE);
+#else
+  const bool conectado = mqtt.connect(idCliente);
+#endif
+  if (conectado) {
     Serial.printf("[MQTT] Conectado. Publicando en %s\n", topico);
+  } else if (mqtt.state() == MQTT_CONNECT_BAD_CREDENTIALS || mqtt.state() == MQTT_CONNECT_UNAUTHORIZED) {
+    Serial.printf("[MQTT] El broker rechazó la contraseña del nodo (código %d). Revisa MQTT_CLAVE en credenciales.h "
+                  "(se obtiene con: npm run clave-nodo -- %s).\n",
+                  mqtt.state(), N_SERIE);
   } else {
     Serial.printf("[MQTT] No se pudo conectar (código %d). ¿Está corriendo el backend (npm start), la IP es la de la PC "
                   "y el firewall de Windows permite el puerto %d?\n",

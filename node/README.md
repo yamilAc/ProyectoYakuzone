@@ -86,6 +86,23 @@ Frontend React  <---- API REST (/api/...) con JWT ----  Express  <----------+
 
 Ver `.env.example`. `JWT_SECRET` ya viene generado con un valor aleatorio.
 
+## Autenticación de los nodos en MQTT
+
+Con `MQTT_SECRETO` configurado en `.env`, el broker solo acepta conexiones con
+usuario y contraseña. Cada nodo usa su número de serie como usuario y una
+contraseña propia, derivada del secreto con HMAC-SHA256 (no se guarda en la
+base). Para obtener la de un nodo y copiarla en su `credenciales.h`:
+```
+npm run clave-nodo -- SN-010
+```
+Cada nodo solo puede publicar en su propio tópico
+(`yakuzone/sensores/<n_serie>/lecturas`) y ningún nodo puede suscribirse, así
+que un dispositivo de la red no puede enviar lecturas a nombre de otro ni leer
+las ajenas. El backend se conecta como un usuario interno. Si se cambia
+`MQTT_SECRETO`, cambian todas las contraseñas y hay que actualizar el firmware
+de cada nodo. El tráfico MQTT no va cifrado (sin TLS), por lo que la red local
+debe ser de confianza.
+
 ## Avisos por correo y WhatsApp
 
 Cuando un administrador o empleado asigna una alerta a un equipo, el sistema

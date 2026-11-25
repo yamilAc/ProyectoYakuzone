@@ -12,7 +12,12 @@
 #define MQTT_PUERTO 1883
 
 // Número de serie con el que el nodo está registrado en la página Sensores
+// (es también su usuario en el broker MQTT)
 #define N_SERIE "SN-010"
+
+// Contraseña MQTT del nodo. Se obtiene en la PC del backend, en la carpeta
+// node, con: npm run clave-nodo -- SN-010
+#define MQTT_CLAVE "contrasena-mqtt-del-nodo"
 
 // (Opcional) Segunda red, por ejemplo el hotspot de la laptop en la defensa.
 // Si la primera red no está disponible, el nodo prueba esta. Con el hotspot

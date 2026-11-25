@@ -137,26 +137,34 @@ function siguienteLectura(nSerie) {
   };
 }
 
-const client = mqtt.connect(`mqtt://localhost:${MQTT_PORT}`);
+// Cada sensor simulado se conecta por separado, con su número de serie como
+// usuario y su contraseña MQTT, igual que un nodo real (ver mqtt/credenciales.js).
+const { autenticacionActiva, claveDe } = require('./mqtt/credenciales');
 
-client.on('connect', () => {
-  console.log(`Simulador conectado al broker. Publicando lecturas de: ${SENSORES.join(', ')} (cada ${INTERVALO_MS / 1000}s)`);
-  console.log('Presiona Ctrl+C para detener.\n');
+console.log(`Simulando: ${SENSORES.join(', ')} (una lectura cada ${INTERVALO_MS / 1000}s por sensor)`);
+console.log('Presiona Ctrl+C para detener.\n');
 
-  SENSORES.forEach((nSerie, i) => {
-    const topico = `yakuzone/sensores/${nSerie}/lecturas`;
+SENSORES.forEach((nSerie, i) => {
+  const topico = `yakuzone/sensores/${nSerie}/lecturas`;
+  const opciones = autenticacionActiva() ? { username: nSerie, password: claveDe(nSerie) } : {};
+  const client = mqtt.connect(`mqtt://localhost:${MQTT_PORT}`, opciones);
+  let intervalo = null;
+
+  client.on('connect', () => {
+    console.log(`(${nSerie}) conectado al broker`);
+    if (intervalo) return;
     // Pequeño desfase inicial entre sensores para que no publiquen todos
     // exactamente en el mismo milisegundo.
     setTimeout(() => {
-      setInterval(() => {
+      intervalo = setInterval(() => {
         const payload = siguienteLectura(nSerie);
         client.publish(topico, JSON.stringify(payload));
         console.log(`Publicado (${nSerie}):`, payload);
       }, INTERVALO_MS);
     }, i * 400);
   });
-});
 
-client.on('error', (err) => {
-  console.error('Error de conexión del simulador:', err.message);
+  client.on('error', (err) => {
+    console.error(`Error de conexión del simulador (${nSerie}):`, err.message);
+  });
 });

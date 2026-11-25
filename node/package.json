@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "simulate": "node simulator.js"
+    "simulate": "node simulator.js",
+    "clave-nodo": "node mqtt/clave-nodo.js"
   },
   "keywords": [],
   "author": "",

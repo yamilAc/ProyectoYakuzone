@@ -78,7 +78,10 @@ libre ese lado en la protoboard.
    de serie (por ejemplo `SN-010`).
 4. Copiar `yakuzone_nodo/credenciales_ejemplo.h` como
    `yakuzone_nodo/credenciales.h` y completar la red Wi-Fi, la IP de la PC
-   donde corre el backend y el número de serie. Este archivo no se sube a git.
+   donde corre el backend, el número de serie y la contraseña MQTT del nodo
+   (`MQTT_CLAVE`, que se obtiene en la carpeta `node` con
+   `npm run clave-nodo -- SN-010`; ver "Autenticación de los nodos en MQTT"
+   en el README del backend). Este archivo no se sube a git.
 
 La PC del backend debe aceptar conexiones al puerto 1883 desde la red local:
 en Windows, la red Wi-Fi tiene que estar como **red privada** (Configuración →

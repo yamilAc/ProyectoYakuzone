@@ -1,12 +1,14 @@
 const mqtt = require('mqtt');
 const db = require('../db');
 const { registrarLectura } = require('../services/lecturasService');
+const { USUARIO_BACKEND, autenticacionActiva, claveDe } = require('./credenciales');
 
 // Tópico que publican los nodos ESP32 (o el simulador): yakuzone/sensores/<n_serie>/lecturas
 const TOPICO = 'yakuzone/sensores/+/lecturas';
 
 function iniciarSuscriptorMQTT(mqttPort) {
-  const client = mqtt.connect(`mqtt://localhost:${mqttPort}`);
+  const opciones = autenticacionActiva() ? { username: USUARIO_BACKEND, password: claveDe(USUARIO_BACKEND) } : {};
+  const client = mqtt.connect(`mqtt://localhost:${mqttPort}`, opciones);
 
   client.on('connect', () => {
     console.log('[MQTT] Backend conectado al broker como suscriptor');
