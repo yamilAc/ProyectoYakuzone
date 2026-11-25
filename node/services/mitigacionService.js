@@ -14,8 +14,60 @@ const { obtenerDetalleAlerta } = require('./alertasService');
 // Texto de respaldo si la API de Gemini no está configurada o falla, para
 // que la sugerencia igual quede registrada y el equipo de mitigación sepa
 // que hay que revisar la alerta manualmente.
+const INICIO_RESPALDO = 'No se pudo generar una recomendación automática en este momento.';
 function sugerenciaDeRespaldo({ etiquetaParametro, valor, rango }) {
-  return `No se pudo generar una recomendación automática en este momento. Revisar manualmente: ${etiquetaParametro} = ${valor} (rango aceptable: ${rango}).`;
+  return `${INICIO_RESPALDO} Revisar manualmente: ${etiquetaParametro} = ${valor} (rango aceptable: ${rango}).`;
+}
+
+// Reintento en segundo plano: si Gemini no respondió al confirmarse la
+// alerta (modelos saturados, sin internet), la sugerencia queda con el texto
+// de respaldo y se vuelve a pedir cada 2 minutos, hasta 15 veces (unos 30
+// minutos). Cuando sale, se reemplaza el respaldo en la base, de modo que al
+// asignar la alerta el correo ya lleva la sugerencia real. La cola vive en
+// memoria: si el backend se reinicia, las pendientes se quedan con el respaldo.
+const INTERVALO_REINTENTO_MS = 2 * 60 * 1000;
+const MAX_REINTENTOS = 15;
+const pendientes = new Map(); // id de la sugerencia -> { contexto, intentos }
+let temporizador = null;
+let reintentando = false;
+
+async function reintentarPendientes() {
+  if (reintentando) return;
+  reintentando = true;
+  try {
+    for (const [id, pendiente] of pendientes) {
+      pendiente.intentos += 1;
+      const texto = await generarRecomendacion(pendiente.contexto);
+      if (texto) {
+        await db.query('UPDATE sugerencias_mitigacion SET sugerencia = ? WHERE id = ? AND sugerencia LIKE ?', [
+          texto,
+          id,
+          `${INICIO_RESPALDO}%`,
+        ]);
+        pendientes.delete(id);
+        console.log(`[Mitigación] Sugerencia ${id} actualizada con la recomendación de Gemini (reintento ${pendiente.intentos}).`);
+      } else if (pendiente.intentos >= MAX_REINTENTOS) {
+        pendientes.delete(id);
+        console.warn(`[Mitigación] Sugerencia ${id}: Gemini no respondió en ${MAX_REINTENTOS} reintentos; queda el texto de respaldo.`);
+      }
+    }
+  } catch (err) {
+    console.error('[Mitigación] Error al reintentar las sugerencias:', err.message);
+  } finally {
+    reintentando = false;
+    if (pendientes.size === 0 && temporizador) {
+      clearInterval(temporizador);
+      temporizador = null;
+    }
+  }
+}
+
+function agregarPendiente(id, contexto) {
+  pendientes.set(id, { contexto, intentos: 0 });
+  if (!temporizador) {
+    temporizador = setInterval(reintentarPendientes, INTERVALO_REINTENTO_MS);
+    temporizador.unref(); // no impide que el proceso termine
+  }
 }
 
 // Se llama desde services/lecturasService.js, sin bloquear el registro de la
@@ -29,16 +81,19 @@ async function generarSugerencia({ alertaId, sensorId, parametro, valor }) {
   const [sensores] = await db.query('SELECT ubicacion FROM sensores WHERE id = ?', [sensorId]);
   const ubicacion = sensores[0]?.ubicacion || null;
 
-  let sugerenciaTexto = await generarRecomendacion({ etiquetaParametro, valor, rangoTexto: rango, ubicacion });
-  if (!sugerenciaTexto) {
-    sugerenciaTexto = sugerenciaDeRespaldo({ etiquetaParametro, valor, rango });
-  }
+  const contexto = { etiquetaParametro, valor, rangoTexto: rango, ubicacion };
+  const textoGemini = await generarRecomendacion(contexto);
+  const sugerenciaTexto = textoGemini || sugerenciaDeRespaldo({ etiquetaParametro, valor, rango });
 
   const [resultado] = await db.query(
     `INSERT INTO sugerencias_mitigacion (alerta_id, sensor_id, parametro, valor, rango_referencia, sugerencia)
      VALUES (?, ?, ?, ?, ?, ?)`,
     [alertaId, sensorId, parametro, valor, rango, sugerenciaTexto]
   );
+  // Sin clave configurada no tiene sentido reintentar.
+  if (!textoGemini && process.env.GEMINI_API_KEY) {
+    agregarPendiente(resultado.insertId, contexto);
+  }
   return resultado.insertId;
 }
 
