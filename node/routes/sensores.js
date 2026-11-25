@@ -3,6 +3,7 @@ const router = express.Router();
 const db = require('../db');
 const { authenticate, authorize } = require('../middleware/auth');
 const { TELEFONO_VALIDO, CI_VALIDO, limpiarTexto } = require('../utils/validaciones');
+const { borrarFotosGuardadas } = require('../utils/subidas');
 
 // Datos obligatorios del propietario de la vivienda donde se instala el
 // sensor (el número de casa es opcional). Se muestran en el detalle de cada
@@ -112,10 +113,18 @@ router.put('/:id', authenticate, authorize('administrador'), async (req, res) =>
 // antes de llamar a esta ruta.
 router.delete('/:id', authenticate, authorize('administrador'), async (req, res) => {
   try {
+    // La base elimina en cascada las lecturas, alertas, informes y registros
+    // de fotos del nodo, pero los archivos de las fotos están en el disco:
+    // se anotan antes de borrar y se eliminan solo si la baja se concreta.
+    const [fotos] = await db.query(
+      'SELECT f.archivo FROM fotos_mitigacion f JOIN alertas a ON a.id = f.alerta_id WHERE a.sensor_id = ?',
+      [req.params.id]
+    );
     const [resultado] = await db.query('DELETE FROM sensores WHERE id = ?', [req.params.id]);
     if (resultado.affectedRows === 0) {
       return res.status(404).json({ error: 'Sensor no encontrado' });
     }
+    borrarFotosGuardadas(fotos.map((f) => f.archivo));
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });

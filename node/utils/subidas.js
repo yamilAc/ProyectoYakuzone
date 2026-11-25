@@ -68,4 +68,17 @@ function recibirFotos(req, res, next) {
   });
 }
 
-module.exports = { CARPETA_FOTOS, TIPOS_FOTO, recibirFotos, borrarArchivos, esImagenValida };
+// Borra del disco las fotos ya guardadas, por su nombre de archivo (columna
+// "archivo" de fotos_mitigacion). Se usa al eliminar registros de la base que
+// las referencian, para no dejar archivos huérfanos. Solo se toma el nombre
+// base, de modo que nunca se borra nada fuera de la carpeta de fotos.
+function borrarFotosGuardadas(nombres) {
+  for (const nombre of nombres || []) {
+    if (!nombre) continue;
+    fs.unlink(path.join(CARPETA_FOTOS, path.basename(nombre)), (err) => {
+      if (err && err.code !== 'ENOENT') console.error('[Fotos] No se pudo borrar', nombre, '-', err.message);
+    });
+  }
+}
+
+module.exports = { CARPETA_FOTOS, TIPOS_FOTO, recibirFotos, borrarArchivos, borrarFotosGuardadas, esImagenValida };
