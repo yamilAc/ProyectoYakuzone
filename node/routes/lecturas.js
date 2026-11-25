@@ -1,17 +1,23 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../db');
-const { authenticate } = require('../middleware/auth');
+const { authenticate, authorize } = require('../middleware/auth');
+const { errorInterno } = require('../utils/errores');
+const { errorPeriodo, validarId } = require('../utils/validaciones');
 const { registrarLectura } = require('../services/lecturasService');
 const { UMBRALES } = require('../utils/thresholds');
 
-const FECHA_VALIDA = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_PUNTOS_SERIE = 300;
+
+router.param('sensorId', validarId);
 
 // GET /api/lecturas?sensor_id=N&limite=100 - últimas lecturas registradas
 // (de todos los sensores, o solo de uno con sensor_id), usada por las vistas
 // de monitoreo en tiempo real. limite: entre 1 y 500, 100 por defecto.
 router.get('/', authenticate, async (req, res) => {
+  if (req.query.sensor_id !== undefined && !/^[1-9][0-9]*$/.test(String(req.query.sensor_id))) {
+    return res.status(400).json({ error: 'El sensor indicado no es válido' });
+  }
   const sensorId = Number(req.query.sensor_id) || null;
   const limite = Math.min(500, Math.max(1, parseInt(req.query.limite, 10) || 100));
   try {
@@ -26,7 +32,7 @@ router.get('/', authenticate, async (req, res) => {
     );
     res.json(rows.reverse()); // orden ascendente, para graficar en el tiempo
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    errorInterno(res, err);
   }
 });
 
@@ -54,7 +60,7 @@ router.get('/ultimas', authenticate, async (req, res) => {
     const vistos = new Set();
     res.json(rows.filter((r) => !vistos.has(r.sensor_id) && vistos.add(r.sensor_id)));
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    errorInterno(res, err);
   }
 });
 
@@ -68,8 +74,9 @@ router.get('/ultimas', authenticate, async (req, res) => {
 // (horas con datos y días sin ellos).
 router.get('/:sensorId/serie', authenticate, async (req, res) => {
   const { desde, hasta } = req.query;
-  if ((desde && !FECHA_VALIDA.test(desde)) || (hasta && !FECHA_VALIDA.test(hasta))) {
-    return res.status(400).json({ error: 'Las fechas deben tener el formato AAAA-MM-DD' });
+  const errorFechas = errorPeriodo(desde, hasta);
+  if (errorFechas) {
+    return res.status(400).json({ error: errorFechas });
   }
   const condiciones = ['sensor_id = ?'];
   const params = [req.params.sensorId];
@@ -145,7 +152,7 @@ router.get('/:sensorId/serie', authenticate, async (req, res) => {
     }
     res.json(respuesta);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    errorInterno(res, err);
   }
 });
 
@@ -154,6 +161,10 @@ router.get('/:sensorId/serie', authenticate, async (req, res) => {
 router.get('/:sensorId', authenticate, async (req, res) => {
   const { sensorId } = req.params;
   const { fechaInicio, fechaFin } = req.query;
+  const errorFechas = errorPeriodo(fechaInicio, fechaFin);
+  if (errorFechas) {
+    return res.status(400).json({ error: errorFechas });
+  }
   try {
     let query = 'SELECT * FROM lecturas WHERE sensor_id = ?';
     const params = [sensorId];
@@ -169,18 +180,23 @@ router.get('/:sensorId', authenticate, async (req, res) => {
     const [rows] = await db.query(query, params);
     res.json(rows);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    errorInterno(res, err);
   }
 });
 
-// POST /api/lecturas - inserción manual (fallback de pruebas sin MQTT).
-// El flujo normal de los sensores llega por el broker MQTT (ver mqtt/subscriber.js).
-router.post('/', authenticate, async (req, res) => {
+// POST /api/lecturas - inserción manual (fallback de pruebas sin MQTT), solo
+// para administradores. El flujo normal de los sensores llega por el broker
+// MQTT (ver mqtt/subscriber.js). Los valores se validan en registrarLectura.
+router.post('/', authenticate, authorize('administrador'), async (req, res) => {
   const { sensor_id, valor_temperatura, valor_turbidez, valor_ph, valor_conductividad, fecha_hora } = req.body;
-  if (!sensor_id) {
-    return res.status(400).json({ error: 'sensor_id es requerido' });
+  if (!/^[1-9][0-9]*$/.test(String(sensor_id ?? ''))) {
+    return res.status(400).json({ error: 'Indica un sensor válido (sensor_id)' });
   }
   try {
+    const [sensores] = await db.query('SELECT id FROM sensores WHERE id = ?', [sensor_id]);
+    if (sensores.length === 0) {
+      return res.status(404).json({ error: 'Sensor no encontrado' });
+    }
     const { lecturaId, alertas } = await registrarLectura({
       sensorId: sensor_id,
       temperatura: valor_temperatura,
@@ -191,7 +207,10 @@ router.post('/', authenticate, async (req, res) => {
     });
     res.status(201).json({ id: lecturaId, alertasGeneradas: alertas.length });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    if (err.esValidacion) {
+      return res.status(400).json({ error: `${err.message}: revisa que los valores sean números dentro de su rango` });
+    }
+    errorInterno(res, err);
   }
 });
 

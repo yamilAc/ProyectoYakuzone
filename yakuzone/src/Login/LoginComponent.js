@@ -22,6 +22,8 @@ import VerifiedIcon from '@mui/icons-material/Verified';
 import ShowChartIcon from '@mui/icons-material/ShowChart';
 import { motion } from 'framer-motion';
 import axios from '../axios/axiosConfig';
+import { validarLogin, LARGO } from '../utils/validaciones';
+import { setToken } from '../axios/auth';
 import logo from '../images/logoYakuzone.png';
 import fondoAgua from '../images/agua1.jpg';
 
@@ -48,19 +50,23 @@ const LoginComponent = ({ setAuth }) => {
   const [contrasenia, setPassword] = useState('');
   const [mostrarPassword, setMostrarPassword] = useState(false);
   const [error, setError] = useState('');
+  const [errores, setErrores] = useState({});
   const [cargando, setCargando] = useState(false);
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    const encontrados = validarLogin({ email, contrasenia });
+    setErrores(encontrados);
+    if (Object.keys(encontrados).length > 0) return;
     setCargando(true);
 
     try {
-      const response = await axios.post('/login', { email, contrasenia });
+      const response = await axios.post('/login', { email: email.trim(), contrasenia });
 
       if (response.data.token) {
-        localStorage.setItem('token', response.data.token);
+        setToken(response.data.token);
         setAuth(true);
         navigate('/');
       } else {
@@ -69,6 +75,9 @@ const LoginComponent = ({ setAuth }) => {
     } catch (err) {
       if (err.response && err.response.status === 401) {
         setError('Correo o contraseña incorrectos.');
+      } else if (err.response && err.response.status === 429) {
+        // Bloqueo temporal por demasiados intentos fallidos (lo explica la API).
+        setError(err.response.data?.error || 'Demasiados intentos fallidos. Espera unos minutos.');
       } else {
         console.error('Error en la autenticación:', err);
         setError('Error al conectar con el servidor. Intenta nuevamente.');
@@ -212,15 +221,21 @@ const LoginComponent = ({ setAuth }) => {
             </Alert>
           )}
 
-          <Box component="form" onSubmit={handleSubmit}>
+          <Box component="form" onSubmit={handleSubmit} noValidate>
             <TextField
               fullWidth
               type="email"
               label="Correo electrónico"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                setErrores((er) => ({ ...er, email: undefined }));
+              }}
               required
               margin="normal"
+              error={Boolean(errores.email)}
+              helperText={errores.email}
+              inputProps={{ maxLength: LARGO.email }}
               InputProps={{
                 startAdornment: (
                   <InputAdornment position="start">
@@ -234,9 +249,15 @@ const LoginComponent = ({ setAuth }) => {
               type={mostrarPassword ? 'text' : 'password'}
               label="Contraseña"
               value={contrasenia}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                setErrores((er) => ({ ...er, contrasenia: undefined }));
+              }}
               required
               margin="normal"
+              error={Boolean(errores.contrasenia)}
+              helperText={errores.contrasenia}
+              inputProps={{ maxLength: 200 }}
               InputProps={{
                 startAdornment: (
                   <InputAdornment position="start">

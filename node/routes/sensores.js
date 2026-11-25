@@ -2,7 +2,18 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 const { authenticate, authorize } = require('../middleware/auth');
-const { TELEFONO_VALIDO, CI_VALIDO, limpiarTexto } = require('../utils/validaciones');
+const { errorInterno } = require('../utils/errores');
+const {
+  TELEFONO_VALIDO,
+  CI_VALIDO,
+  NOMBRE_PERSONA,
+  N_SERIE_VALIDO,
+  LARGO,
+  limpiarTexto,
+  validarId,
+} = require('../utils/validaciones');
+
+router.param('id', validarId);
 const { borrarFotosGuardadas } = require('../utils/subidas');
 
 // Datos obligatorios del propietario de la vivienda donde se instala el
@@ -20,11 +31,11 @@ const CAMPOS_PROPIETARIO_OBLIGATORIOS = {
 // { datos } listo para INSERT/UPDATE, o { error } con el mensaje a mostrar.
 function leerDatosSensor(body) {
   const datos = {
-    n_serie: limpiarTexto(body.n_serie),
+    n_serie: (limpiarTexto(body.n_serie) || '').toUpperCase() || null,
     ubicacion: limpiarTexto(body.ubicacion),
     descripcion: limpiarTexto(body.descripcion),
-    latitud: body.latitud || null,
-    longitud: body.longitud || null,
+    latitud: limpiarTexto(body.latitud),
+    longitud: limpiarTexto(body.longitud),
     propietario_nombre: limpiarTexto(body.propietario_nombre),
     propietario_ci: limpiarTexto(body.propietario_ci),
     propietario_telefono: limpiarTexto(body.propietario_telefono),
@@ -36,10 +47,48 @@ function leerDatosSensor(body) {
   if (!datos.n_serie) {
     return { error: 'El número de serie es requerido' };
   }
+  // El número de serie es también el usuario y parte del tópico MQTT del nodo.
+  if (!N_SERIE_VALIDO.test(datos.n_serie)) {
+    return { error: 'El número de serie debe tener de 3 a 30 letras, números o guiones, sin espacios (ej: SN-010)' };
+  }
+  if (!datos.ubicacion) {
+    return { error: 'La ubicación es requerida' };
+  }
   for (const [campo, nombre] of Object.entries(CAMPOS_PROPIETARIO_OBLIGATORIOS)) {
     if (!datos[campo]) {
       return { error: `El campo "${nombre}" es requerido` };
     }
+  }
+  const largos = [
+    ['ubicacion', 'La ubicación'],
+    ['descripcion', 'La descripción'],
+    ['propietario_nombre', 'El nombre del propietario'],
+    ['propietario_direccion', 'La dirección'],
+    ['propietario_nro_casa', 'El número de casa'],
+  ];
+  for (const [campo, nombre] of largos) {
+    if (datos[campo] && datos[campo].length > LARGO[campo]) {
+      return { error: `${nombre} puede tener hasta ${LARGO[campo]} caracteres` };
+    }
+  }
+  if (!NOMBRE_PERSONA.test(datos.propietario_nombre) || datos.propietario_nombre.length < 3) {
+    return { error: 'El nombre del propietario solo puede tener letras' };
+  }
+  // Coordenadas: las dos o ninguna, números dentro de los rangos geográficos.
+  if (Boolean(datos.latitud) !== Boolean(datos.longitud)) {
+    return { error: 'Indica la latitud y la longitud, o ninguna de las dos' };
+  }
+  if (datos.latitud) {
+    const lat = Number(datos.latitud);
+    const lon = Number(datos.longitud);
+    if (!Number.isFinite(lat) || lat < -90 || lat > 90) {
+      return { error: 'La latitud debe ser un número entre -90 y 90' };
+    }
+    if (!Number.isFinite(lon) || lon < -180 || lon > 180) {
+      return { error: 'La longitud debe ser un número entre -180 y 180' };
+    }
+    datos.latitud = lat;
+    datos.longitud = lon;
   }
   if (!CI_VALIDO.test(datos.propietario_ci)) {
     return { error: 'El CI del propietario no es válido (ej: 1234567 o 1234567 CB)' };
@@ -58,9 +107,14 @@ function leerDatosSensor(body) {
 router.get('/', authenticate, async (req, res) => {
   try {
     const [rows] = await db.query('SELECT * FROM sensores ORDER BY id');
+    // El jefe de un equipo de mitigación necesita los teléfonos para coordinar
+    // la visita, pero no el CI de los propietarios.
+    if (req.user.rol === 'equipo_mitigacion') {
+      return res.json(rows.map(({ propietario_ci, ...resto }) => resto));
+    }
     res.json(rows);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    errorInterno(res, err);
   }
 });
 
@@ -78,7 +132,7 @@ router.post('/', authenticate, authorize('administrador'), async (req, res) => {
     const [result] = await db.query('INSERT INTO sensores SET ?', [datos]);
     res.status(201).json({ id: result.insertId });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    errorInterno(res, err);
   }
 });
 
@@ -102,7 +156,7 @@ router.put('/:id', authenticate, authorize('administrador'), async (req, res) =>
     }
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    errorInterno(res, err);
   }
 });
 
@@ -127,7 +181,7 @@ router.delete('/:id', authenticate, authorize('administrador'), async (req, res)
     borrarFotosGuardadas(fotos.map((f) => f.archivo));
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    errorInterno(res, err);
   }
 });
 

@@ -2,6 +2,8 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 const { authenticate, authorize } = require('../middleware/auth');
+const { errorInterno } = require('../utils/errores');
+const { validarId } = require('../utils/validaciones');
 const { cliente, servicioDisponible } = require('../utils/ml');
 const { estado } = require('../services/analisisService');
 
@@ -50,7 +52,7 @@ router.get('/resumen', async (req, res) => {
       }))
     );
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    errorInterno(res, err);
   }
 });
 
@@ -58,6 +60,8 @@ router.get('/resumen', async (req, res) => {
 // clasificación, evolución de la probabilidad y del puntaje de anomalía,
 // lecturas anómalas, último pronóstico de cada parámetro y las lecturas de
 // las últimas horas (promedios de 15 min) para graficarlo a continuación.
+router.param('id', validarId);
+
 router.get('/sensores/:id', async (req, res) => {
   const horas = Math.min(168, Math.max(1, parseInt(req.query.horas, 10) || 24));
   const sensorId = req.params.id;
@@ -124,7 +128,7 @@ router.get('/sensores/:id', async (req, res) => {
       recientes,
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    errorInterno(res, err);
   }
 });
 

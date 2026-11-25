@@ -2,13 +2,15 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 const { authenticate, authorize } = require('../middleware/auth');
-const { TELEFONO_VALIDO, limpiarTexto } = require('../utils/validaciones');
+const { errorInterno } = require('../utils/errores');
+const { TELEFONO_VALIDO, NOMBRE_PERSONA, LARGO, limpiarTexto, validarId } = require('../utils/validaciones');
 
 // Equipos de mitigación: cada equipo tiene un jefe, el único integrante con
 // usuario en el sistema (rol equipo_mitigacion), que es quien recibe las
 // alertas que se le asignan al equipo; los demás miembros se registran solo
 // con nombre y teléfono.
 router.use(authenticate);
+router.param('id', validarId);
 
 const MAX_MIEMBROS = 20;
 
@@ -34,7 +36,7 @@ async function listarEquipos() {
 
 // Lee y valida el formulario de alta/edición. Devuelve { datos, miembros }
 // o { error } con el mensaje a mostrar.
-async function leerDatosEquipo(body) {
+async function leerDatosEquipo(body, idActual = 0) {
   const datos = {
     nombre: limpiarTexto(body.nombre),
     descripcion: limpiarTexto(body.descripcion),
@@ -43,8 +45,18 @@ async function leerDatosEquipo(body) {
   if (!datos.nombre) {
     return { error: 'El nombre del equipo es requerido' };
   }
+  if (datos.nombre.length < 3 || datos.nombre.length > LARGO.equipo_nombre) {
+    return { error: `El nombre del equipo debe tener entre 3 y ${LARGO.equipo_nombre} caracteres` };
+  }
+  if (datos.descripcion && datos.descripcion.length > LARGO.descripcion) {
+    return { error: `La descripción puede tener hasta ${LARGO.descripcion} caracteres` };
+  }
   if (!datos.jefe_id) {
     return { error: 'Selecciona al jefe del equipo' };
+  }
+  const [repetidos] = await db.query('SELECT id FROM equipos_mitigacion WHERE nombre = ? AND id <> ?', [datos.nombre, idActual]);
+  if (repetidos.length > 0) {
+    return { error: 'Ya existe un equipo con ese nombre' };
   }
 
   const [jefes] = await db.query('SELECT rol FROM usuarios WHERE id = ?', [datos.jefe_id]);
@@ -64,7 +76,10 @@ async function leerDatosEquipo(body) {
     if (!nombre) {
       return { error: 'Cada miembro necesita un nombre' };
     }
-    if (telefono && !TELEFONO_VALIDO.test(telefono)) {
+    if (nombre.length < 3 || nombre.length > LARGO.miembro_nombre || !NOMBRE_PERSONA.test(nombre)) {
+      return { error: `El nombre "${nombre}" no es válido: usa solo letras (de 3 a ${LARGO.miembro_nombre})` };
+    }
+    if (telefono && (!TELEFONO_VALIDO.test(telefono) || telefono.length > LARGO.telefono)) {
       return { error: `El teléfono de ${nombre} no es válido` };
     }
     miembros.push([nombre, telefono]);
@@ -106,7 +121,7 @@ router.get('/', authorize('administrador', 'empleado'), async (req, res) => {
   try {
     res.json(await listarEquipos());
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    errorInterno(res, err);
   }
 });
 
@@ -120,7 +135,7 @@ router.post('/', authorize('administrador'), async (req, res) => {
     const id = await guardarEquipo(null, datos, miembros);
     res.status(201).json({ id });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    errorInterno(res, err);
   }
 });
 
@@ -131,14 +146,14 @@ router.put('/:id', authorize('administrador'), async (req, res) => {
     if (existentes.length === 0) {
       return res.status(404).json({ error: 'Equipo no encontrado' });
     }
-    const { datos, miembros, error } = await leerDatosEquipo(req.body);
+    const { datos, miembros, error } = await leerDatosEquipo(req.body, req.params.id);
     if (error) {
       return res.status(400).json({ error });
     }
     await guardarEquipo(req.params.id, datos, miembros);
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    errorInterno(res, err);
   }
 });
 
@@ -162,7 +177,7 @@ router.delete('/:id', authorize('administrador'), async (req, res) => {
     }
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    errorInterno(res, err);
   }
 });
 

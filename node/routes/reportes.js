@@ -2,7 +2,8 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 const { authenticate, authorize } = require('../middleware/auth');
-const { FECHA_VALIDA } = require('../services/alertasService');
+const { errorInterno } = require('../utils/errores');
+const { errorPeriodo, esIdValido } = require('../utils/validaciones');
 const {
   datosReporteAlertas,
   datosReporteGeneral,
@@ -24,10 +25,8 @@ function leerParametros(query) {
   const desde = query.desde || null;
   const hasta = query.hasta || null;
   if (!FORMATOS.includes(formato)) return { error: 'El formato debe ser pdf o xlsx' };
-  if ((desde && !FECHA_VALIDA.test(desde)) || (hasta && !FECHA_VALIDA.test(hasta))) {
-    return { error: 'Las fechas deben tener el formato AAAA-MM-DD' };
-  }
-  if (desde && hasta && desde > hasta) return { error: 'La fecha "desde" no puede ser posterior a "hasta"' };
+  const errorFechas = errorPeriodo(desde, hasta);
+  if (errorFechas) return { error: errorFechas };
   return { formato, desde, hasta };
 }
 
@@ -43,7 +42,7 @@ async function nombreUsuario(id) {
 // GET /api/reportes/alertas?sensor_id=N&desde=&hasta=&formato=pdf|xlsx
 router.get('/alertas', async (req, res) => {
   const { formato, desde, hasta, error } = leerParametros(req.query);
-  const sensorId = Number(req.query.sensor_id);
+  const sensorId = esIdValido(req.query.sensor_id) ? Number(req.query.sensor_id) : 0;
   if (error || !sensorId) {
     return res.status(400).json({ error: error || 'Falta el sensor' });
   }
@@ -60,7 +59,7 @@ router.get('/alertas', async (req, res) => {
     else await reporteAlertasSensor.excel(res, datos, opciones);
   } catch (err) {
     console.error('[Reportes] Error en el reporte de alertas:', err.message);
-    if (!res.headersSent) res.status(500).json({ error: err.message });
+    errorInterno(res, err);
   }
 });
 
@@ -81,7 +80,7 @@ router.get('/alertas-general', async (req, res) => {
     else await reporteAlertasGeneral.excel(res, datos, opciones);
   } catch (err) {
     console.error('[Reportes] Error en el reporte general de alertas:', err.message);
-    if (!res.headersSent) res.status(500).json({ error: err.message });
+    errorInterno(res, err);
   }
 });
 
@@ -103,7 +102,7 @@ router.get('/general', async (req, res) => {
     else await reporteGeneral.excel(res, datos, opciones);
   } catch (err) {
     console.error('[Reportes] Error en el reporte general:', err.message);
-    if (!res.headersSent) res.status(500).json({ error: err.message });
+    errorInterno(res, err);
   }
 });
 

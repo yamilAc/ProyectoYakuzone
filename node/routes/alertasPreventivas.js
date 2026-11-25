@@ -2,6 +2,8 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 const { authenticate, authorize } = require('../middleware/auth');
+const { errorInterno } = require('../utils/errores');
+const { validarId } = require('../utils/validaciones');
 
 // Alertas preventivas generadas por los modelos de aprendizaje automático
 // (lecturas anómalas y pronósticos fuera de la NB 512-04). Son informativas:
@@ -32,7 +34,7 @@ router.get('/', async (req, res) => {
     );
     res.json(rows);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    errorInterno(res, err);
   }
 });
 
@@ -42,7 +44,7 @@ router.get('/resumen', async (req, res) => {
     const [[r]] = await db.query('SELECT COUNT(*) AS total, SUM(vista = 0) AS sin_ver FROM alertas_preventivas');
     res.json({ total: Number(r.total), sin_ver: Number(r.sin_ver || 0) });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    errorInterno(res, err);
   }
 });
 
@@ -52,11 +54,13 @@ router.put('/vistas', async (req, res) => {
     await db.query('UPDATE alertas_preventivas SET vista = 1 WHERE vista = 0');
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    errorInterno(res, err);
   }
 });
 
 // PUT /api/alertas-preventivas/:id/vista - marcar una como vista.
+router.param('id', validarId);
+
 router.put('/:id/vista', async (req, res) => {
   try {
     const [resultado] = await db.query('UPDATE alertas_preventivas SET vista = 1 WHERE id = ?', [req.params.id]);
@@ -65,7 +69,7 @@ router.put('/:id/vista', async (req, res) => {
     }
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    errorInterno(res, err);
   }
 });
 

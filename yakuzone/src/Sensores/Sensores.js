@@ -42,6 +42,7 @@ import axios from '../axios/axiosConfig';
 import PageHeader from '../components/PageHeader';
 import { evaluarEstadoSensor, textoUltimaLectura, COLORES_ESTADO, ETIQUETAS_ESTADO, crearIconoEstado } from '../utils/estadoSensor';
 import { getUserRole } from '../axios/auth';
+import { validarSensor, LARGO } from '../utils/validaciones';
 
 // Centro por defecto para el mini-mapa del formulario: OTB Urbanización
 // Halein, Chiquicollo, Cochabamba (mismo centro que Zonas/Dashboard).
@@ -100,6 +101,7 @@ const Sensores = () => {
   const [editando, setEditando] = useState(null);
   const [formData, setFormData] = useState(FORM_INICIAL);
   const [guardando, setGuardando] = useState(false);
+  const [errores, setErrores] = useState({});
 
   const [sensorAEliminar, setSensorAEliminar] = useState(null);
   const [confirmoPerdida, setConfirmoPerdida] = useState(false);
@@ -155,6 +157,7 @@ const Sensores = () => {
   const abrirNuevo = () => {
     setEditando(null);
     setFormData(FORM_INICIAL);
+    setErrores({});
     setDialogoAbierto(true);
   };
 
@@ -168,6 +171,7 @@ const Sensores = () => {
       longitud: sensor.longitud !== null && sensor.longitud !== undefined ? Number(sensor.longitud) : CENTRO_DEFAULT.lng,
       ...Object.fromEntries(CAMPOS_PROPIETARIO.map((campo) => [campo, sensor[campo] || ''])),
     });
+    setErrores({});
     setDialogoAbierto(true);
   };
 
@@ -178,16 +182,23 @@ const Sensores = () => {
 
   const handleInputChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
+    setErrores((er) => ({ ...er, [e.target.name]: undefined }));
   };
+
+  // Props de error para cada campo: lo marca en rojo y muestra el motivo.
+  const campo = (nombre, ayuda) => ({ error: Boolean(errores[nombre]), helperText: errores[nombre] || ayuda });
 
   const handleSeleccionarUbicacion = (lat, lng) => {
     setFormData((f) => ({ ...f, latitud: Number(lat.toFixed(6)), longitud: Number(lng.toFixed(6)) }));
+    setErrores((er) => ({ ...er, latitud: undefined, longitud: undefined }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.n_serie.trim()) {
-      setFeedback({ open: true, severity: 'error', message: 'El número de serie es obligatorio.' });
+    const encontrados = validarSensor(formData);
+    setErrores(encontrados);
+    if (Object.keys(encontrados).length > 0) {
+      setFeedback({ open: true, severity: 'warning', message: 'Revisa los campos marcados en rojo.' });
       return;
     }
     setGuardando(true);
@@ -423,7 +434,7 @@ const Sensores = () => {
             <CloseIcon fontSize="small" />
           </IconButton>
         </DialogTitle>
-        <Box component="form" onSubmit={handleSubmit}>
+        <Box component="form" onSubmit={handleSubmit} noValidate>
           <DialogContent dividers>
             <Grid container spacing={2}>
               <Grid item xs={12} sm={6}>
@@ -435,6 +446,8 @@ const Sensores = () => {
                   fullWidth
                   required
                   placeholder="SN-005"
+                  inputProps={{ maxLength: LARGO.n_serie }}
+                  {...campo('n_serie', 'Sin espacios; es también el usuario MQTT del nodo')}
                 />
               </Grid>
               <Grid item xs={12} sm={6}>
@@ -444,7 +457,10 @@ const Sensores = () => {
                   value={formData.ubicacion}
                   onChange={handleInputChange}
                   fullWidth
+                  required
                   placeholder="OTB Urbanización Hallein, Chiquicollo"
+                  inputProps={{ maxLength: LARGO.ubicacion }}
+                  {...campo('ubicacion')}
                 />
               </Grid>
               <Grid item xs={12}>
@@ -457,6 +473,8 @@ const Sensores = () => {
                   multiline
                   minRows={2}
                   placeholder="Nodo de monitoreo — Vivienda 5"
+                  inputProps={{ maxLength: LARGO.descripcion }}
+                  {...campo('descripcion')}
                 />
               </Grid>
               <Grid item xs={6}>
@@ -467,7 +485,8 @@ const Sensores = () => {
                   value={formData.latitud}
                   onChange={handleInputChange}
                   fullWidth
-                  inputProps={{ step: 'any' }}
+                  inputProps={{ step: 'any', min: -90, max: 90 }}
+                  {...campo('latitud')}
                 />
               </Grid>
               <Grid item xs={6}>
@@ -478,7 +497,8 @@ const Sensores = () => {
                   value={formData.longitud}
                   onChange={handleInputChange}
                   fullWidth
-                  inputProps={{ step: 'any' }}
+                  inputProps={{ step: 'any', min: -180, max: 180 }}
+                  {...campo('longitud')}
                 />
               </Grid>
               <Grid item xs={12}>
@@ -514,6 +534,8 @@ const Sensores = () => {
                   onChange={handleInputChange}
                   fullWidth
                   required
+                  inputProps={{ maxLength: LARGO.propietario_nombre }}
+                  {...campo('propietario_nombre')}
                 />
               </Grid>
               <Grid item xs={12} sm={4}>
@@ -525,6 +547,8 @@ const Sensores = () => {
                   fullWidth
                   required
                   placeholder="1234567 CB"
+                  inputProps={{ maxLength: LARGO.ci }}
+                  {...campo('propietario_ci')}
                 />
               </Grid>
               <Grid item xs={12} sm={6}>
@@ -536,6 +560,8 @@ const Sensores = () => {
                   fullWidth
                   required
                   placeholder="71234567"
+                  inputProps={{ maxLength: LARGO.telefono }}
+                  {...campo('propietario_telefono')}
                 />
               </Grid>
               <Grid item xs={12} sm={6}>
@@ -546,7 +572,8 @@ const Sensores = () => {
                   onChange={handleInputChange}
                   fullWidth
                   required
-                  helperText="Por si el propietario no contesta"
+                  inputProps={{ maxLength: LARGO.telefono }}
+                  {...campo('telefono_emergencia', 'Por si el propietario no contesta')}
                 />
               </Grid>
               <Grid item xs={12} sm={9}>
@@ -557,6 +584,8 @@ const Sensores = () => {
                   onChange={handleInputChange}
                   fullWidth
                   required
+                  inputProps={{ maxLength: LARGO.propietario_direccion }}
+                  {...campo('propietario_direccion')}
                 />
               </Grid>
               <Grid item xs={12} sm={3}>
@@ -566,7 +595,8 @@ const Sensores = () => {
                   value={formData.propietario_nro_casa}
                   onChange={handleInputChange}
                   fullWidth
-                  helperText="Opcional"
+                  inputProps={{ maxLength: LARGO.propietario_nro_casa }}
+                  {...campo('propietario_nro_casa', 'Opcional')}
                 />
               </Grid>
             </Grid>

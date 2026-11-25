@@ -3,11 +3,15 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 const { authenticate, authorize } = require('../middleware/auth');
+const { errorInterno } = require('../utils/errores');
 const { equiposDelJefe, obtenerDetalleAlerta, historialDelSensor } = require('../services/alertasService');
 const { notificarAsignacion, enlaceAsignacion } = require('../services/mitigacionService');
 const { CARPETA_FOTOS, TIPOS_FOTO, recibirFotos, borrarArchivos, esImagenValida } = require('../utils/subidas');
+const { validarId, esIdValido } = require('../utils/validaciones');
 
 router.use(authenticate);
+router.param('id', validarId);
+router.param('informeId', validarId);
 
 // Seguimiento de una alerta: pendiente (sin asignar) -> asignada ->
 // en_revision (el jefe del equipo envió el informe de la visita) -> mitigada
@@ -27,6 +31,12 @@ const esJefe = (req) => req.user.rol === 'equipo_mitigacion';
 // de visita (para mostrar sus fotos en la lista).
 router.get('/', async (req, res) => {
   const { estado, sensor_id } = req.query;
+  if (estado && !ESTADOS.includes(estado)) {
+    return res.status(400).json({ error: 'El estado debe ser pendiente, asignada, en_revision o mitigada' });
+  }
+  if (sensor_id && !esIdValido(sensor_id)) {
+    return res.status(400).json({ error: 'El sensor indicado no es válido' });
+  }
   const condiciones = [];
   const params = [];
   if (esJefe(req)) {
@@ -60,7 +70,7 @@ router.get('/', async (req, res) => {
     );
     res.json(rows);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    errorInterno(res, err);
   }
 });
 
@@ -80,7 +90,7 @@ router.get('/resumen', async (req, res) => {
     });
     res.json(resumen);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    errorInterno(res, err);
   }
 });
 
@@ -118,7 +128,7 @@ router.get('/:id', async (req, res) => {
       },
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    errorInterno(res, err);
   }
 });
 
@@ -128,7 +138,7 @@ router.get('/:id', async (req, res) => {
 // alerta vuelve a "asignada" para una nueva visita, del mismo equipo u otro.
 // Lo pueden hacer administradores y empleados.
 router.put('/:id/asignar', authorize('administrador', 'empleado'), async (req, res) => {
-  const equipoId = Number(req.body.equipo_id);
+  const equipoId = esIdValido(req.body.equipo_id) ? Number(req.body.equipo_id) : 0;
   const instrucciones = String(req.body.instrucciones || '').trim();
   if (!equipoId) {
     return res.status(400).json({ error: 'Selecciona un equipo de mitigación' });
@@ -194,7 +204,7 @@ router.put('/:id/asignar', authorize('administrador', 'empleado'), async (req, r
       whatsapp_url: detalle ? enlaceAsignacion(detalle) : null,
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    errorInterno(res, err);
   }
 });
 
@@ -218,7 +228,7 @@ async function verificarPuedeInformar(req, res, next) {
     req.equipoDeLaAlerta = alertas[0].equipo_id;
     next();
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    errorInterno(res, err);
   }
 }
 
@@ -278,7 +288,7 @@ router.post('/:id/informes', authorize('equipo_mitigacion'), verificarPuedeInfor
   } catch (err) {
     await conexion.rollback();
     borrarArchivos(fotos);
-    res.status(500).json({ error: err.message });
+    errorInterno(res, err);
   } finally {
     conexion.release();
   }
@@ -327,7 +337,7 @@ router.put('/:id/aprobar', authorize('administrador', 'empleado'), async (req, r
     res.json({ ok: true });
   } catch (err) {
     await conexion.rollback();
-    res.status(500).json({ error: err.message });
+    errorInterno(res, err);
   } finally {
     conexion.release();
   }
@@ -362,7 +372,7 @@ router.get('/:id/informes/:informeId/fotos/:tipo', async (req, res) => {
       if (err && !res.headersSent) res.status(404).json({ error: 'El archivo de la foto ya no existe' });
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    errorInterno(res, err);
   }
 });
 

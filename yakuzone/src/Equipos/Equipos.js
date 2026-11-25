@@ -34,6 +34,7 @@ import RemoveCircleOutlineIcon from '@mui/icons-material/RemoveCircleOutline';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import PhoneIcon from '@mui/icons-material/Phone';
 import axios from '../axios/axiosConfig';
+import { validarEquipo, LARGO } from '../utils/validaciones';
 import PageHeader from '../components/PageHeader';
 
 const MIEMBRO_VACIO = { nombre: '', telefono: '' };
@@ -50,6 +51,7 @@ const Equipos = () => {
   const [dialogoAbierto, setDialogoAbierto] = useState(false);
   const [editando, setEditando] = useState(null);
   const [formData, setFormData] = useState(FORM_INICIAL);
+  const [errores, setErrores] = useState({});
   const [guardando, setGuardando] = useState(false);
 
   const [equipoAEliminar, setEquipoAEliminar] = useState(null);
@@ -78,6 +80,7 @@ const Equipos = () => {
   const abrirNuevo = () => {
     setEditando(null);
     setFormData({ ...FORM_INICIAL, miembros: [{ ...MIEMBRO_VACIO }] });
+    setErrores({});
     setDialogoAbierto(true);
   };
 
@@ -91,6 +94,7 @@ const Equipos = () => {
         ? equipo.miembros.map((m) => ({ nombre: m.nombre, telefono: m.telefono || '' }))
         : [{ ...MIEMBRO_VACIO }],
     });
+    setErrores({});
     setDialogoAbierto(true);
   };
 
@@ -101,13 +105,18 @@ const Equipos = () => {
 
   const handleInputChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
+    setErrores((er) => ({ ...er, [e.target.name]: undefined }));
   };
+
+  // Props de error para cada campo: lo marca en rojo y muestra el motivo.
+  const campo = (nombre, ayuda) => ({ error: Boolean(errores[nombre]), helperText: errores[nombre] || ayuda });
 
   const handleMiembroChange = (indice, campo, valor) => {
     setFormData((f) => ({
       ...f,
       miembros: f.miembros.map((m, i) => (i === indice ? { ...m, [campo]: valor } : m)),
     }));
+    setErrores((er) => ({ ...er, [`miembro_${indice}_${campo}`]: undefined }));
   };
 
   const agregarMiembro = () => {
@@ -116,10 +125,17 @@ const Equipos = () => {
 
   const quitarMiembro = (indice) => {
     setFormData((f) => ({ ...f, miembros: f.miembros.filter((_, i) => i !== indice) }));
+    setErrores({});
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    const encontrados = validarEquipo(formData);
+    setErrores(encontrados);
+    if (Object.keys(encontrados).length > 0) {
+      setFeedback({ open: true, severity: 'warning', message: 'Revisa los campos marcados en rojo.' });
+      return;
+    }
     setGuardando(true);
     try {
       if (editando) {
@@ -310,7 +326,7 @@ const Equipos = () => {
             <CloseIcon fontSize="small" />
           </IconButton>
         </DialogTitle>
-        <Box component="form" onSubmit={handleSubmit}>
+        <Box component="form" onSubmit={handleSubmit} noValidate>
           <DialogContent dividers>
             <Grid container spacing={2}>
               <Grid item xs={12}>
@@ -322,6 +338,8 @@ const Equipos = () => {
                   fullWidth
                   required
                   placeholder="Equipo 1 - Chiquicollo"
+                  inputProps={{ maxLength: LARGO.equipo_nombre }}
+                  {...campo('nombre')}
                 />
               </Grid>
               <Grid item xs={12}>
@@ -332,6 +350,8 @@ const Equipos = () => {
                   onChange={handleInputChange}
                   fullWidth
                   placeholder="Zona o tareas que cubre el equipo"
+                  inputProps={{ maxLength: LARGO.descripcion }}
+                  {...campo('descripcion')}
                 />
               </Grid>
               <Grid item xs={12}>
@@ -343,7 +363,7 @@ const Equipos = () => {
                   onChange={handleInputChange}
                   fullWidth
                   required
-                  helperText="Recibe por correo y en Notificaciones las alertas asignadas al equipo"
+                  {...campo('jefe_id', 'Recibe por correo y en Notificaciones las alertas asignadas al equipo')}
                 >
                   {jefes.length === 0 && (
                     <MenuItem value="" disabled>
@@ -367,13 +387,16 @@ const Equipos = () => {
                 </Typography>
               </Grid>
               {formData.miembros.map((m, i) => (
-                <Grid item xs={12} key={i} sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                <Grid item xs={12} key={i} sx={{ display: 'flex', gap: 1, alignItems: 'flex-start' }}>
                   <TextField
                     label={`Miembro ${i + 1}`}
                     value={m.nombre}
                     onChange={(e) => handleMiembroChange(i, 'nombre', e.target.value)}
                     size="small"
                     sx={{ flex: 3 }}
+                    inputProps={{ maxLength: LARGO.miembro_nombre }}
+                    error={Boolean(errores[`miembro_${i}_nombre`])}
+                    helperText={errores[`miembro_${i}_nombre`]}
                   />
                   <TextField
                     label="Teléfono"
@@ -381,6 +404,9 @@ const Equipos = () => {
                     onChange={(e) => handleMiembroChange(i, 'telefono', e.target.value)}
                     size="small"
                     sx={{ flex: 2 }}
+                    inputProps={{ maxLength: LARGO.telefono }}
+                    error={Boolean(errores[`miembro_${i}_telefono`])}
+                    helperText={errores[`miembro_${i}_telefono`]}
                   />
                   <Tooltip title="Quitar miembro">
                     <IconButton size="small" onClick={() => quitarMiembro(i)}>

@@ -42,6 +42,7 @@ import PhoneIcon from '@mui/icons-material/Phone';
 import axios from '../axios/axiosConfig';
 import PageHeader from '../components/PageHeader';
 import { getUserId } from '../axios/auth';
+import { validarUsuario, LARGO } from '../utils/validaciones';
 
 const FORM_INICIAL = {
   nombre: '',
@@ -74,6 +75,7 @@ const Usuarios = () => {
   const [editando, setEditando] = useState(null);
   const [formData, setFormData] = useState(FORM_INICIAL);
   const [guardando, setGuardando] = useState(false);
+  const [errores, setErrores] = useState({});
 
   const [usuarioAEliminar, setUsuarioAEliminar] = useState(null);
   const [eliminando, setEliminando] = useState(false);
@@ -113,12 +115,14 @@ const Usuarios = () => {
   const abrirNuevo = () => {
     setEditando(null);
     setFormData(FORM_INICIAL);
+    setErrores({});
     setDialogoAbierto(true);
   };
 
   const abrirEditar = (usuario) => {
     setEditando(usuario);
     setFormData({ ...usuario, telefono: usuario.telefono || '', contrasenia: '' });
+    setErrores({});
     setDialogoAbierto(true);
   };
 
@@ -129,10 +133,20 @@ const Usuarios = () => {
 
   const handleInputChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
+    setErrores((er) => ({ ...er, [e.target.name]: undefined, ...(e.target.name === 'rol' ? { telefono: undefined } : {}) }));
   };
+
+  // Props de error para cada campo: lo marca en rojo y muestra el motivo.
+  const campo = (nombre, ayuda) => ({ error: Boolean(errores[nombre]), helperText: errores[nombre] || ayuda });
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    const encontrados = validarUsuario(formData, { editando: Boolean(editando) });
+    setErrores(encontrados);
+    if (Object.keys(encontrados).length > 0) {
+      setFeedback({ open: true, severity: 'warning', message: 'Revisa los campos marcados en rojo.' });
+      return;
+    }
     setGuardando(true);
     try {
       if (editando) {
@@ -166,7 +180,7 @@ const Usuarios = () => {
       fetchUsuarios();
     } catch (error) {
       console.error('Error al eliminar el usuario:', error);
-      setFeedback({ open: true, severity: 'error', message: 'No se pudo eliminar el usuario.' });
+      setFeedback({ open: true, severity: 'error', message: error.response?.data?.error || 'No se pudo eliminar el usuario.' });
     } finally {
       setEliminando(false);
     }
@@ -374,20 +388,20 @@ const Usuarios = () => {
             <CloseIcon fontSize="small" />
           </IconButton>
         </DialogTitle>
-        <Box component="form" onSubmit={handleSubmit}>
+        <Box component="form" onSubmit={handleSubmit} noValidate>
           <DialogContent dividers>
             <Grid container spacing={2}>
               <Grid item xs={12} sm={6}>
-                <TextField label="Nombre" name="nombre" value={formData.nombre} onChange={handleInputChange} fullWidth required />
+                <TextField label="Nombre" name="nombre" value={formData.nombre} onChange={handleInputChange} fullWidth required inputProps={{ maxLength: LARGO.nombre }} {...campo('nombre')} />
               </Grid>
               <Grid item xs={12} sm={6}>
-                <TextField label="Apellidos" name="apellido" value={formData.apellido} onChange={handleInputChange} fullWidth required />
+                <TextField label="Apellidos" name="apellido" value={formData.apellido} onChange={handleInputChange} fullWidth required inputProps={{ maxLength: LARGO.apellido }} {...campo('apellido')} />
               </Grid>
               <Grid item xs={12} sm={6}>
-                <TextField label="Cédula de Identidad" name="ci" value={formData.ci} onChange={handleInputChange} fullWidth required />
+                <TextField label="Cédula de Identidad" name="ci" value={formData.ci} onChange={handleInputChange} fullWidth required placeholder="1234567 CB" inputProps={{ maxLength: LARGO.ci }} {...campo('ci')} />
               </Grid>
               <Grid item xs={12} sm={6}>
-                <TextField label="Email" name="email" value={formData.email} onChange={handleInputChange} type="email" fullWidth required />
+                <TextField label="Email" name="email" value={formData.email} onChange={handleInputChange} type="email" fullWidth required inputProps={{ maxLength: LARGO.email }} {...campo('email')} />
               </Grid>
               <Grid item xs={12} sm={6}>
                 <TextField
@@ -398,11 +412,13 @@ const Usuarios = () => {
                   fullWidth
                   required={formData.rol === 'equipo_mitigacion'}
                   placeholder="71234567"
-                  helperText={
+                  inputProps={{ maxLength: LARGO.telefono }}
+                  {...campo(
+                    'telefono',
                     formData.rol === 'equipo_mitigacion'
                       ? 'Obligatorio: aquí le llegan por WhatsApp las alertas de su equipo'
                       : 'Opcional'
-                  }
+                  )}
                 />
               </Grid>
               <Grid item xs={12} sm={6}>
@@ -414,6 +430,8 @@ const Usuarios = () => {
                   type="password"
                   fullWidth
                   required={!editando}
+                  inputProps={{ maxLength: LARGO.contrasenia }}
+                  {...campo('contrasenia', 'Mínimo 8 caracteres, con letras y números')}
                 />
               </Grid>
               <Grid item xs={12} sm={6}>

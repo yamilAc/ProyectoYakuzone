@@ -17,9 +17,8 @@ Frontend React  <---- API REST (/api/...) con JWT ----  Express  <----------+
    ```
    npm install
    ```
-2. Crear la base de datos y las tablas (edita `.env` primero si tu MySQL
-   tiene otro usuario/contraseña; por defecto usa `root` / `Univalle`, igual
-   que el proyecto original):
+2. Crear la base de datos y las tablas (antes, completa en `.env` el usuario
+   y la contraseña de tu MySQL en `DB_USER` y `DB_PASSWORD`):
    ```
    mysql -u root -p < schema.sql
    ```

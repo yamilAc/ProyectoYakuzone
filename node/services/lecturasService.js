@@ -14,8 +14,51 @@ const { generarSugerencia } = require('./mitigacionService');
 // cuando el mismo parámetro se mantiene fuera de rango varias lecturas
 // seguidas (ver utils/contadorAlertas.js) — así se evita notificar por una
 // lectura aislada y ruidosa del sensor.
-async function registrarLectura({ sensorId, temperatura, turbidez, ph, conductividad, fechaHora }) {
-  const fecha = fechaHora ? new Date(fechaHora) : new Date();
+// Rangos físicamente posibles de cada parámetro (y de los sensores usados).
+// Un valor fuera de ellos o que no sea un número es un error de medición o
+// un mensaje mal formado: se descarta ese parámetro y se registran los demás.
+const RANGOS_VALIDOS = {
+  temperatura: { min: -10, max: 60 },
+  ph: { min: 0, max: 14 },
+  turbidez: { min: 0, max: 4000 },
+  conductividad: { min: 0, max: 20000 },
+};
+
+function valorValido(nombre, valor, sensorId) {
+  if (valor === undefined || valor === null || valor === '') return null;
+  const numero = typeof valor === 'number' ? valor : Number(String(valor).trim());
+  const { min, max } = RANGOS_VALIDOS[nombre];
+  if (!Number.isFinite(numero) || numero < min || numero > max) {
+    console.warn(`[Lecturas] Valor descartado del sensor ${sensorId}: ${nombre} = ${JSON.stringify(valor)} (válido: ${min} a ${max})`);
+    return null;
+  }
+  return numero;
+}
+
+// La fecha la pone el servidor; solo se acepta la que viene en el mensaje si
+// es válida y razonable (hasta un día atrás y no en el futuro).
+function fechaDeLectura(fechaHora) {
+  const ahora = new Date();
+  if (!fechaHora) return ahora;
+  const fecha = new Date(fechaHora);
+  if (Number.isNaN(fecha.getTime()) || fecha > new Date(ahora.getTime() + 5 * 60 * 1000) || fecha < new Date(ahora.getTime() - 24 * 3600 * 1000)) {
+    return ahora;
+  }
+  return fecha;
+}
+
+async function registrarLectura(entrada) {
+  const { sensorId } = entrada;
+  const temperatura = valorValido('temperatura', entrada.temperatura, sensorId);
+  const turbidez = valorValido('turbidez', entrada.turbidez, sensorId);
+  const ph = valorValido('ph', entrada.ph, sensorId);
+  const conductividad = valorValido('conductividad', entrada.conductividad, sensorId);
+  if ([temperatura, turbidez, ph, conductividad].every((v) => v === null)) {
+    const error = new Error('La lectura no tiene ningún valor válido');
+    error.esValidacion = true;
+    throw error;
+  }
+  const fecha = fechaDeLectura(entrada.fechaHora);
 
   const [resultado] = await db.query(
     `INSERT INTO lecturas (sensor_id, valor_temperatura, valor_turbidez, valor_ph, valor_conductividad, fecha_hora)
@@ -59,4 +102,4 @@ async function registrarLectura({ sensorId, temperatura, turbidez, ph, conductiv
   return { lecturaId, alertas: alertasGeneradas };
 }
 
-module.exports = { registrarLectura };
+module.exports = { registrarLectura, RANGOS_VALIDOS };

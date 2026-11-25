@@ -32,9 +32,11 @@ function AppContent() {
   const [isAuth, setIsAuth] = useState(isAuthenticated());
   const location = useLocation();
 
+  // Se vuelve a comprobar la sesión en cada cambio de página: si el token
+  // venció mientras el sistema estaba abierto, se vuelve al inicio de sesión.
   useEffect(() => {
     setIsAuth(isAuthenticated());
-  }, []);
+  }, [location.pathname]);
 
   const userRole = getUserRole();
 
@@ -85,7 +87,7 @@ function AppContent() {
               path="/Analisis"
               element={<ProtectedRoute element={<Analisis />} requiredRoles={['administrador', 'empleado']} />}
             />
-            <Route path="/Reporte" element={<Reporte />} />
+            <Route path="/Reporte" element={isAuth ? <Reporte /> : <Navigate to="/login" />} />
 
             {/* Rutas accesibles solo para administradores */}
             <Route

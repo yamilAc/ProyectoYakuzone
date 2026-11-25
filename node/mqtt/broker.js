@@ -10,6 +10,16 @@ const { USUARIO_BACKEND, autenticacionActiva, claveCorrecta, topicoDelNodo } = r
 // mqtt/credenciales.js) y cada nodo solo puede publicar en su propio tópico,
 // para que ningún dispositivo de la red pueda enviar lecturas a nombre de
 // otro nodo. Solo el backend puede suscribirse.
+// Una lectura ocupa menos de 100 bytes; un mensaje mucho más grande es un
+// error o un intento de llenar la memoria del servidor: se rechaza y se
+// desconecta al cliente.
+const MAXIMO_BYTES_MENSAJE = 1024;
+const mensajeDemasiadoGrande = (client, paquete) => {
+  if (!paquete.payload || paquete.payload.length <= MAXIMO_BYTES_MENSAJE) return false;
+  console.warn(`[MQTT] Mensaje rechazado: ${(client && (client.usuario || client.id)) || '-'} envió ${paquete.payload.length} bytes (máximo ${MAXIMO_BYTES_MENSAJE})`);
+  return true;
+};
+
 function iniciarBrokerMQTT(port) {
   const aedes = new Aedes();
 
@@ -26,6 +36,7 @@ function iniciarBrokerMQTT(port) {
     };
 
     aedes.authorizePublish = (client, paquete, listo) => {
+      if (client && mensajeDemasiadoGrande(client, paquete)) return listo(new Error('Mensaje demasiado grande'));
       if (!client || client.usuario === USUARIO_BACKEND) return listo(null);
       if (paquete.topic === topicoDelNodo(client.usuario)) return listo(null);
       console.warn(`[MQTT] Publicación rechazada: ${client.usuario} intentó publicar en "${paquete.topic}"`);
@@ -39,6 +50,8 @@ function iniciarBrokerMQTT(port) {
     };
   } else {
     console.warn('[MQTT] MQTT_SECRETO no está configurado en .env: el broker acepta conexiones sin usuario ni contraseña.');
+    aedes.authorizePublish = (client, paquete, listo) =>
+      listo(client && mensajeDemasiadoGrande(client, paquete) ? new Error('Mensaje demasiado grande') : null);
   }
 
   const servidor = net.createServer(aedes.handle);

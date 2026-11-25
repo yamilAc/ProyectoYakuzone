@@ -6,6 +6,11 @@ import HandymanIcon from '@mui/icons-material/Handyman';
 import AddAPhotoIcon from '@mui/icons-material/AddAPhoto';
 import CloseIcon from '@mui/icons-material/Close';
 import axios from '../axios/axiosConfig';
+import { TIPOS_IMAGEN } from '../utils/validaciones';
+
+// Tamaño máximo de la foto original; antes de subirla se comprime (ver
+// utils/imagenes.js), y la API acepta hasta 5 MB por foto ya comprimida.
+const MAXIMO_ORIGINAL_MB = 20;
 
 // Las 3 fotos de evidencia del informe de una visita (mismos nombres que
 // espera el backend).
@@ -35,8 +40,10 @@ export const SelectorFotos = ({ fotos, onChange, disabled, opcionales = [] }) =>
     [fotos]
   );
   useEffect(() => () => Object.values(previas).forEach((url) => url && URL.revokeObjectURL(url)), [previas]);
+  const [aviso, setAviso] = useState('');
 
   return (
+    <>
     <Grid container spacing={1.2}>
       {TIPOS_FOTO.map(({ tipo, label, descripcion, icon: Icon }) => (
         <Grid item xs={12} sm={4} key={tipo}>
@@ -56,13 +63,23 @@ export const SelectorFotos = ({ fotos, onChange, disabled, opcionales = [] }) =>
           >
             <input
               type="file"
-              accept="image/*"
+              accept={TIPOS_IMAGEN.join(',')}
               hidden
               disabled={disabled}
               onChange={(e) => {
                 const archivo = e.target.files && e.target.files[0];
-                if (archivo) onChange({ ...fotos, [tipo]: archivo });
                 e.target.value = '';
+                if (!archivo) return;
+                if (!TIPOS_IMAGEN.includes(archivo.type)) {
+                  setAviso(`"${label}": solo se aceptan fotos JPG, PNG o WebP.`);
+                  return;
+                }
+                if (archivo.size > MAXIMO_ORIGINAL_MB * 1024 * 1024) {
+                  setAviso(`"${label}": la foto pesa más de ${MAXIMO_ORIGINAL_MB} MB.`);
+                  return;
+                }
+                setAviso('');
+                onChange({ ...fotos, [tipo]: archivo });
               }}
             />
             {previas[tipo] ? (
@@ -94,6 +111,12 @@ export const SelectorFotos = ({ fotos, onChange, disabled, opcionales = [] }) =>
         </Grid>
       ))}
     </Grid>
+    {aviso && (
+      <Typography variant="caption" color="error" sx={{ display: 'block', mt: 0.5 }}>
+        {aviso}
+      </Typography>
+    )}
+    </>
   );
 };
 

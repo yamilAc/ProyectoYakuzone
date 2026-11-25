@@ -341,6 +341,7 @@ const DetalleAlerta = ({ alertaId, onClose, onCambio }) => {
           multiline
           minRows={2}
           inputProps={{ maxLength: 500 }}
+          helperText={`${instrucciones.length}/500 caracteres${equipoId ? '' : ' · selecciona primero un equipo'}`}
         />
         <Box>
           <Button
@@ -579,7 +580,21 @@ const DetalleAlerta = ({ alertaId, onClose, onCambio }) => {
                               multiline
                               minRows={2}
                               inputProps={{ maxLength: 500 }}
+                              error={observacion.trim().length > 0 && observacion.trim().length < 5}
+                              helperText={`${observacion.trim().length}/500 caracteres · mínimo 5`}
                             />
+                            {!informeCompleto && (
+                              <Typography variant="caption" color="text.secondary">
+                                Para enviar el informe falta:{' '}
+                                {[
+                                  ...fotosObligatorias(resultado)
+                                    .filter((tipo) => !fotos[tipo])
+                                    .map((tipo) => `la foto de ${TIPOS_FOTO.find((t) => t.tipo === tipo).label.toLowerCase()}`),
+                                  ...(observacion.trim().length < 5 ? ['la descripción (mínimo 5 caracteres)'] : []),
+                                ].join(', ')}
+                                .
+                              </Typography>
+                            )}
                             <Box>
                               <Button
                                 variant="contained"
@@ -615,6 +630,7 @@ const DetalleAlerta = ({ alertaId, onClose, onCambio }) => {
                               <TextField
                                 label="Comentario (opcional)"
                                 value={comentarioRevision}
+                                helperText={`${comentarioRevision.length}/500 caracteres (opcional)`}
                                 onChange={(e) => setComentarioRevision(e.target.value)}
                                 size="small"
                                 fullWidth

@@ -1,5 +1,6 @@
 import React from 'react';
 import { Chip, Stack, TextField } from '@mui/material';
+import { errorPeriodo } from '../utils/validaciones';
 
 // "YYYY-MM-DD" de hoy menos n días, en hora local.
 export const hoyMenos = (dias) => {
@@ -21,7 +22,8 @@ export const periodoPredefinido = (clave) => {
   return dias ? { desde: hoyMenos(dias), hasta: hoyMenos(0) } : { desde: '', hasta: '' };
 };
 
-export const periodoInvalido = ({ desde, hasta }) => Boolean(desde && hasta && desde > hasta);
+// Fin anterior al inicio o inicio en el futuro (ver utils/validaciones.js).
+export const periodoInvalido = ({ desde, hasta }) => Boolean(errorPeriodo(desde, hasta));
 
 // Elección de periodo: atajos (semanal, mensual, anual o todo) y fechas de
 // inicio y fin editables. valor: { desde, hasta } en "YYYY-MM-DD" ('' = sin límite).
@@ -30,7 +32,9 @@ const SelectorPeriodo = ({ valor, onChange }) => {
     const v = periodoPredefinido(p.clave);
     return v.desde === valor.desde && v.hasta === valor.hasta;
   });
-  const invalido = periodoInvalido(valor);
+  const error = errorPeriodo(valor.desde, valor.hasta);
+  const invalido = Boolean(error);
+  const hoy = hoyMenos(0);
 
   return (
     <>
@@ -55,9 +59,11 @@ const SelectorPeriodo = ({ valor, onChange }) => {
           value={valor.desde}
           onChange={(e) => onChange({ ...valor, desde: e.target.value })}
           InputLabelProps={{ shrink: true }}
+          inputProps={{ min: '2000-01-01', max: hoy }}
           size="small"
           fullWidth
           error={invalido}
+          helperText={error && error.includes('futuro') ? error : ''}
         />
         <TextField
           label="Fecha fin"
@@ -67,8 +73,9 @@ const SelectorPeriodo = ({ valor, onChange }) => {
           InputLabelProps={{ shrink: true }}
           size="small"
           fullWidth
+          inputProps={{ min: '2000-01-01' }}
           error={invalido}
-          helperText={invalido ? 'La fecha fin debe ser posterior a la de inicio' : ''}
+          helperText={error && !error.includes('futuro') ? 'La fecha fin debe ser posterior a la de inicio' : ''}
         />
       </Stack>
     </>
